@@ -9,6 +9,16 @@ This recipe provides a canonical Google Agent Development Kit (ADK) architecture
    - **Persona Hierarchy (`SECOPS_USE_PERSONAS=true`, default)**: Root `secops_supervisor` coordinates 5 role-scoped specialist sub-agents (`secops_triage_specialist`, `secops_threat_hunter`, `secops_cti_researcher`, `secops_detection_engineer`, and `secops_incident_responder`), each with its own Markdown persona instruction overlay (`app/profiles/*.md`), scoped `SkillToolset`, and role-filtered SecOps OneMCP and GTI MCP toolsets.
    - **Unified Frontier Agent (`SECOPS_USE_PERSONAS=false`)**: Single `secops_agent` equipped with the full 6-skill `SkillToolset` and live SecOps OneMCP and GTI MCP toolsets.
 
+## Agent Details
+
+| Feature | Description |
+| --- | --- |
+| **Interaction Type** | Conversational & Autonomous SOC Triage |
+| **Complexity** | Advanced |
+| **Agent Type** | Adaptive Multi-Agent Hierarchy (`secops_supervisor` + 5 specialists) or Unified Single Agent (`secops_agent`) |
+| **Components** | `SkillToolset`, `McpToolset` (Google SecOps OneMCP over Streamable HTTP, Google Threat Intelligence MCP over stdio/HTTP), A2A Server |
+| **Vertical** | Security Operations (SIEM / SOAR / Threat Intelligence / Detection Engineering) |
+
 ## Architecture
 
 ```mermaid
@@ -37,12 +47,40 @@ flowchart TD
     Responder --> GTIMCP
 ```
 
+## Project Structure
+
+```text
+secops-custom-agents/
+├── app/
+│   ├── __init__.py           # Package entrypoint: loads .env and exports agent, app, root_agent
+│   ├── agent.py              # Adaptive agent builder (persona hierarchy vs. unified frontier agent)
+│   ├── fast_api_app.py       # FastAPI server with ADK web, A2A, and Agent Engine routes
+│   ├── mcp_tools.py          # SecOps OneMCP + GTI MCP toolsets, tool filters, and schema callbacks
+│   ├── personas.py           # Specialist persona registry and Markdown overlay loader
+│   ├── prompt.py             # Supervisor, unified frontier, and tenant context banner prompts
+│   ├── skills_loader.py      # ADK SkillToolset loader for operational SKILL.md runbooks
+│   ├── app_utils/            # Shared A2A, Agent Engine, and session/artifact service adapters
+│   ├── profiles/             # Role-specific Markdown persona instructions (5 SOC specialists)
+│   └── skills/               # 6 progressive-disclosure SecOps SKILL.md runbooks
+├── tests/
+│   ├── test_runnability.py   # Recipe import and symbol smoke test
+│   ├── unit/                 # Offline unit tests for personas, skills, MCP filters, and A2A boot
+│   └── integration/          # Live streaming and end-to-end FastAPI/A2A integration tests
+├── .env.example              # Environment variable template
+├── Dockerfile                # Cloud Run / container deployment image
+├── Makefile                  # Standard install, playground, test, and lint targets
+├── metadata.json             # ADK recipe catalog metadata
+├── pyproject.toml            # Dependencies, Ruff, and Pytest configuration
+└── README.md
+```
+
 ## Setup
 
 1. Navigate to the recipe directory and install dependencies using `uv`:
 
 ```bash
-cd contrib/python/secops-custom-agents
+RECIPE_DIR="contrib/python/secops-custom-agents"
+cd "$RECIPE_DIR"
 uv sync
 ```
 
@@ -72,6 +110,15 @@ uv run adk web
 # Or switch to the unified single-agent frontier topology
 SECOPS_USE_PERSONAS=false uv run adk run app
 ```
+
+## Try It
+
+| # | Query | What It Demonstrates |
+| --- | --- | --- |
+| 1 | `"List the open alerts in our SecOps tenant from the last 24 hours and triage the highest-severity login alert."` | Routes to `secops_triage_specialist`, loads `triage-alerts` and `suspicious-login-triage` via `SkillToolset`, and queries `secops_get_security_alerts` + `secops_search_security_events`. |
+| 2 | `"Profile GTI collection report--25-10035907 and hunt for matching network and process activity across our SIEM over the last 7 days."` | Coordinates `secops_cti_researcher` (`gti_get_collection_report`, `gti_get_collection_iocs`) with `secops_threat_hunter` (`gti-collection-threat-hunt` skill + UDM hunting). |
+| 3 | `"Validate a YARA-L 2.0 rule detecting suspicious rundll32.exe execution and check its historical alert volume."` | Routes to `secops_detection_engineer`, loads `detection-rule-validation-tuning`, verifies syntax via `secops_verify_rule`, and backtests via `secops_test_rule`. |
+| 4 | `"Evaluate whether SHA-256 hash <hash> observed on workstation-04 should be contained or excluded as a signed OS LOLBin."` | Routes to `secops_incident_responder`, loads `ioc-containment`, checks `gti_get_file_report` for `VALID_CERTIFICATE`, and produces a 4-way Disposition and Containment Matrix. |
 
 ## Run Unit Tests
 

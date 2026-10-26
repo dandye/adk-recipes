@@ -78,13 +78,13 @@ def test_list_personas_returns_five_specialists() -> None:
 
 
 def test_get_persona_unknown_raises_key_error() -> None:
-    """Verifies requesting an unknown persona raises KeyError."""
+    """Verifies requesting an unknown persona raises `KeyError`."""
     with pytest.raises(KeyError, match="Unknown persona"):
         get_persona("nonexistent_persona")
 
 
 def test_load_secops_skills_discovers_all_six_runbooks() -> None:
-    """Verifies all six canonical SKILL.md runbooks load cleanly via ADK."""
+    """Verifies all six canonical `SKILL.md` runbooks load cleanly via ADK."""
     skills = load_secops_skills()
     names = [skill.name for skill in skills]
     assert names == [
@@ -98,14 +98,14 @@ def test_load_secops_skills_discovers_all_six_runbooks() -> None:
 
 
 def test_build_secops_skill_toolset_scopes_by_persona() -> None:
-    """Verifies SkillToolset can be scoped to a subset of skill names."""
+    """Verifies `SkillToolset` can be scoped to a subset of skill names."""
     triage_spec = CANONICAL_PERSONAS["triage_analyst"]
     toolset = build_secops_skill_toolset(skill_names=triage_spec.skill_names)
     assert isinstance(toolset, SkillToolset)
 
 
 def test_build_secops_skill_toolset_rejects_missing_skill() -> None:
-    """Verifies requesting a nonexistent skill name raises FileNotFoundError."""
+    """Verifies requesting a nonexistent skill name raises `FileNotFoundError`."""
     with pytest.raises(
         FileNotFoundError, match="Expected SecOps skill directory"
     ):
@@ -149,7 +149,11 @@ def test_gti_tool_filter_scopes_prefixes() -> None:
 def test_validate_secops_onemcp_config_missing_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verifies missing Chronicle tenant variables raise RuntimeError."""
+    """Verifies missing Chronicle tenant variables raise `RuntimeError`.
+
+    Args:
+        monkeypatch: Pytest fixture used to clear environment variables.
+    """
     monkeypatch.delenv("CHRONICLE_PROJECT_ID", raising=False)
     monkeypatch.delenv("CHRONICLE_CUSTOMER_ID", raising=False)
     with pytest.raises(RuntimeError, match="CHRONICLE_PROJECT_ID"):
@@ -159,7 +163,11 @@ def test_validate_secops_onemcp_config_missing_raises(
 def test_secops_header_provider_uses_oauth_state_or_adc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verifies OneMCP header provider supports OAuth state and Google ADC."""
+    """Verifies OneMCP header provider supports OAuth state and Google ADC.
+
+    Args:
+        monkeypatch: Pytest fixture used to set Chronicle environment variables.
+    """
     monkeypatch.setenv("CHRONICLE_PROJECT_ID", "demo-secops-project")
     monkeypatch.setenv(
         "CHRONICLE_CUSTOMER_ID", "00000000-0000-0000-0000-000000000000"
@@ -189,7 +197,12 @@ def test_secops_header_provider_uses_oauth_state_or_adc(
 def test_validate_gti_mcp_config_and_transports(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verifies GTI MCP toolset supports both stdio and remote HTTP modes."""
+    """Verifies GTI MCP toolset supports both stdio and remote HTTP modes.
+
+    Args:
+        monkeypatch: Pytest fixture used to configure `VT_APIKEY` and
+            `GTI_MCP_URL`.
+    """
     monkeypatch.delenv("VT_APIKEY", raising=False)
     monkeypatch.delenv("GTI_MCP_URL", raising=False)
     with pytest.raises(RuntimeError, match="VT_APIKEY"):
@@ -211,7 +224,11 @@ def test_validate_gti_mcp_config_and_transports(
 def test_build_secops_onemcp_toolset_validates_when_requested(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verifies build_secops_onemcp_toolset validates credentials on demand."""
+    """Verifies `build_secops_onemcp_toolset` validates credentials on demand.
+
+    Args:
+        monkeypatch: Pytest fixture used to set regional Chronicle variables.
+    """
     monkeypatch.setenv("CHRONICLE_PROJECT_ID", "demo-secops-project")
     monkeypatch.setenv(
         "CHRONICLE_CUSTOMER_ID", "00000000-0000-0000-0000-000000000000"
@@ -226,7 +243,7 @@ def test_build_secops_onemcp_toolset_validates_when_requested(
 
 
 def test_strip_response_json_schema_callback_clears_output_schemas() -> None:
-    """Verifies before_model_callback strips oversized MCP output schemas."""
+    """Verifies `before_model_callback` strips oversized MCP output schemas."""
     fn_decl = SimpleNamespace(
         name="secops_search_security_events",
         response_json_schema={"type": "object"},
@@ -244,7 +261,11 @@ def test_strip_response_json_schema_callback_clears_output_schemas() -> None:
 def test_create_agent_persona_hierarchy_and_unified_modes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verifies adaptive topology builds supervisor or unified frontier agent."""
+    """Verifies adaptive topology builds supervisor or unified frontier agent.
+
+    Args:
+        monkeypatch: Pytest fixture used to populate Chronicle tenant context.
+    """
     monkeypatch.setenv("CHRONICLE_PROJECT_ID", "demo-secops-project")
     monkeypatch.setenv(
         "CHRONICLE_CUSTOMER_ID", "00000000-0000-0000-0000-000000000000"
@@ -286,7 +307,11 @@ def test_create_agent_persona_hierarchy_and_unified_modes(
 def test_fastapi_and_a2a_agent_card_boot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verifies FastAPI server and A2A agent card boot cleanly in smoke test mode."""
+    """Verifies FastAPI server and A2A agent card boot cleanly in smoke test mode.
+
+    Args:
+        monkeypatch: Pytest fixture used to enable `INTEGRATION_TEST` mode.
+    """
     from fastapi.testclient import TestClient
 
     from app.fast_api_app import app

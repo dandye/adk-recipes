@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,70 +12,65 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Role-scoped SecOps specialist personas and unified frontier instructions."""
+"""Role-scoped SecOps specialist personas and tool/skill slice definitions.
+
+Defines the 5 canonical Security Operations Center (SOC) specialist personas:
+  1. ``triage_analyst`` (``secops_triage_specialist``) — Alert and case triage
+  2. ``threat_hunter`` (``secops_threat_hunter``) — 72h to 168h UDM hunts
+  3. ``cti_researcher`` (``secops_cti_researcher``) — GTI actor/IOC enrichment
+  4. ``detection_engineer`` (``secops_detection_engineer``) — YARA-L 2.0 rules
+  5. ``incident_responder`` (``secops_incident_responder``) — SOAR containment
+
+Each ``PersonaSpec`` binds a Markdown profile under ``app/profiles/`` with a
+scoped subset of ``SkillToolset`` runbooks and ``McpToolset`` tool prefixes.
+"""
+
+from __future__ import annotations
 
 import dataclasses
-import os
 import pathlib
 
+from app.prompt import (
+    COMPACT_SUPERVISOR_INSTRUCTION,
+    FRONTIER_UNIFIED_INSTRUCTION,
+    build_tenant_context_banner,
+)
+
+__all__ = [
+    "CANONICAL_PERSONAS",
+    "COMPACT_SUPERVISOR_INSTRUCTION",
+    "FRONTIER_UNIFIED_INSTRUCTION",
+    "PROFILES_DIR",
+    "PersonaSpec",
+    "build_tenant_context_banner",
+    "get_persona",
+    "list_personas",
+]
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 PROFILES_DIR = pathlib.Path(__file__).resolve().parent / "profiles"
 
-FRONTIER_UNIFIED_INSTRUCTION = """You are the unified Google SecOps Autonomous Security Operations Agent (`secops_agent`).
 
-## Core Epistemic & Procedural Rules
-1. **Progressive Skill Disclosure**: Before executing Google SecOps OneMCP (`secops_*`) or Google Threat Intelligence (`gti_*`) tools, call `load_skill` for the relevant operational runbook in the skills catalog.
-2. **Pre-Containment Evidence Gate**: Never recommend or invoke host isolation, IOC blocking, or account disablement before checking case/alert details (`secops_get_case`, `secops_list_security_alerts`) and SIEM UDM telemetry (`secops_lookup_entity`, `secops_udm_search`).
-3. **Multi-Horizon Threat Hunting (`72h` -> `168h`)**: Start UDM hunts at `72` hours and automatically widen to `168` hours (`7d`) whenever `72h` returns zero hits.
-4. **Signed OS LOLBin & RFC-5737 Protection**: Always inspect `cert_status` via `gti_get_file_report` before blocking file hashes. Never block signed OS LOLBins (`rundll32.exe`, `wscript.exe`, `powershell.exe` with `VALID_CERTIFICATE`), RFC-1918 private IPs, or RFC-5737 test IPs (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`).
-5. **Benign Enterprise Baseline Override**: When activity matches an authorized jump box, backup service account (`svc-backup`), CI/CD runner, or approved `CHG-...` maintenance window, classify as `BENIGN` and withhold containment.
-6. **4-Way Verdict & Verbatim Entity Recall**: State one top-level verdict (`MALICIOUS`, `SUSPICIOUS`, `INCONCLUSIVE`, or `BENIGN`) without negated phrases, and quote every observed hostname, user, IP, domain, URL, DNS query, and SHA256 hash verbatim.
-"""
-
-COMPACT_SUPERVISOR_INSTRUCTION = """You are the SOC Supervisor Agent (`secops_supervisor`) coordinating 5 role-scoped specialist sub-agents:
-- `secops_triage_specialist`: Alert and case triage, entity timelines, and duplicate/cluster analysis.
-- `secops_threat_hunter`: Proactive `72h`->`168h` UDM threat hunts, DNS tunneling, and living-off-the-land (LOTL) sweeps.
-- `secops_cti_researcher`: Google Threat Intelligence (GTI) collection, actor, and multi-hop IOC enrichment.
-- `secops_detection_engineer`: YARA-L 2.0 (`YL2`) rule authoring, compiler validation, and retrohunts.
-- `secops_incident_responder`: Pre-containment signer verification, IOC/host containment, and final incident reporting.
-
-Route or delegate tasks to the appropriate specialist sub-agent using `transfer_to_agent`, or coordinate multi-stage investigations across specialists. Always enforce `load_skill` before executing `secops_*` or `gti_*` MCP tools, and synthesize a single 4-way verdict (`MALICIOUS`, `SUSPICIOUS`, `INCONCLUSIVE`, or `BENIGN`) quoting all observed entities and IOCs verbatim.
-"""
-
-
-def build_tenant_context_banner(
-    env: dict[str, str] | None = None,
-) -> str:
-    """Builds a tenant parameter hint block so OneMCP calls include projectId/customerId/region."""
-    project_id = (
-        env.get("CHRONICLE_PROJECT_ID") or env.get("GOOGLE_CLOUD_PROJECT")
-        if env is not None
-        else (
-            os.getenv("CHRONICLE_PROJECT_ID")
-            or os.getenv("GOOGLE_CLOUD_PROJECT")
-        )
-    ) or "<CHRONICLE_PROJECT_ID>"
-    customer_id = (
-        env.get("CHRONICLE_CUSTOMER_ID")
-        if env is not None
-        else os.getenv("CHRONICLE_CUSTOMER_ID")
-    ) or "<CHRONICLE_CUSTOMER_ID>"
-    region = (
-        env.get("CHRONICLE_REGION", "us")
-        if env is not None
-        else os.getenv("CHRONICLE_REGION", "us")
-    ) or "us"
-    return (
-        "\n\n## Active Google SecOps Tenant Parameters\n"
-        f"- `projectId`: `{project_id}`\n"
-        f"- `customerId`: `{customer_id}`\n"
-        f"- `region`: `{region}`\n"
-        "Pass these parameters explicitly when invoking Google SecOps OneMCP (`secops_*`) tools."
-    )
-
-
+# ---------------------------------------------------------------------------
+# Specialist Persona Specification
+# ---------------------------------------------------------------------------
 @dataclasses.dataclass(frozen=True)
 class PersonaSpec:
-    """Role-scoped specialist persona configuration."""
+    """Role-scoped specialist persona configuration.
+
+    Attributes:
+        persona_id: Short identifier key (e.g. ``"triage_analyst"``).
+        agent_name: ADK agent identifier registered on ``Agent(name=...)``.
+        display_name: Human-readable title for the specialist role.
+        description: Concise summary exposed to the parent supervisor for
+            routing and sub-agent delegation.
+        profile_filename: Markdown file name inside ``app/profiles/``.
+        skill_names: Tuple of ``SKILL.md`` directory names scoped to this role.
+        secops_tool_prefixes: Allowed Google SecOps OneMCP tool name prefixes.
+        gti_tool_prefixes: Allowed Google Threat Intelligence MCP tool prefixes.
+    """
 
     persona_id: str
     agent_name: str
@@ -87,12 +82,27 @@ class PersonaSpec:
     gti_tool_prefixes: tuple[str, ...]
 
     def load_instruction(self, env: dict[str, str] | None = None) -> str:
-        """Loads the Markdown persona profile and appends tenant context."""
+        """Load the Markdown persona profile and append active tenant context.
+
+        Args:
+            env: Optional environment dictionary override for tenant variables.
+
+        Returns:
+            The complete system instruction string combining the Markdown
+            persona profile and the Google SecOps tenant parameter block.
+
+        Raises:
+            FileNotFoundError: If ``profile_filename`` does not exist under
+                ``PROFILES_DIR``.
+        """
         path = PROFILES_DIR / self.profile_filename
         base = path.read_text(encoding="utf-8").strip()
         return base + build_tenant_context_banner(env=env)
 
 
+# ---------------------------------------------------------------------------
+# Canonical SOC Specialist Roster
+# ---------------------------------------------------------------------------
 CANONICAL_PERSONAS: dict[str, PersonaSpec] = {
     "triage_analyst": PersonaSpec(
         persona_id="triage_analyst",
@@ -257,12 +267,27 @@ CANONICAL_PERSONAS: dict[str, PersonaSpec] = {
 
 
 def list_personas() -> list[PersonaSpec]:
-    """Returns all 5 canonical SecOps specialist personas in deterministic order."""
+    """Return all 5 canonical SecOps specialist personas in deterministic order.
+
+    Returns:
+        A list of ``PersonaSpec`` instances sorted by ``persona_id``.
+    """
     return [CANONICAL_PERSONAS[key] for key in sorted(CANONICAL_PERSONAS)]
 
 
 def get_persona(persona_id: str) -> PersonaSpec:
-    """Looks up a PersonaSpec by ID."""
+    """Look up a ``PersonaSpec`` by its identifier.
+
+    Args:
+        persona_id: Case-insensitive persona identifier (for example,
+            ``"triage_analyst"`` or ``"detection_engineer"``).
+
+    Returns:
+        The matching ``PersonaSpec`` instance.
+
+    Raises:
+        KeyError: If ``persona_id`` is not in ``CANONICAL_PERSONAS``.
+    """
     normalized = persona_id.strip().lower()
     if normalized not in CANONICAL_PERSONAS:
         raise KeyError(

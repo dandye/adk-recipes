@@ -14,16 +14,15 @@
 
 """Attach A2A (Agent2Agent) endpoints to the FastAPI app.
 
-func:`attach_a2a_routes` registers the dynamic
-agent-card endpoint and the JSON-RPC endpoint so the same app serves A2A
-alongside the adk_api routes, reachable by A2A clients and Gemini Enterprise A2A
-registration.
+`attach_a2a_routes` registers the dynamic agent-card endpoint and the JSON-RPC
+endpoint so the same app serves A2A alongside the `adk_api` routes, reachable by
+A2A clients and Gemini Enterprise A2A registration.
 """
 
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import (
@@ -45,14 +44,23 @@ from google.adk.a2a.utils.agent_card_builder import AgentCardBuilder
 
 
 class _A2AServerCallContextBuilder(DefaultServerCallContextBuilder):
-    """Context builder that ensures A2A-Version defaults correctly when missing.
+    """Context builder that ensures `A2A-Version` defaults when missing.
 
-    Proxy infrastructure (e.g. Google Cloud API Gateways) can strip custom HTTP headers
-    like 'A2A-Version'. This builder attempts to infer A2A-version from the method name
-    when the header is missing.
+    Proxy infrastructure (such as Google Cloud API Gateways) can strip custom
+    HTTP headers like `A2A-Version`. This builder infers the A2A version from
+    the JSON-RPC method name when the header is absent.
     """
 
-    def build(self, request):
+    def build(self, request: Any) -> Any:
+        """Builds the A2A server call context with normalized version headers.
+
+        Args:
+            request: Incoming Starlette/FastAPI HTTP request.
+
+        Returns:
+            Constructed `ServerCallContext` with `A2A-Version` populated in
+            `context.state["headers"]`.
+        """
         context = super().build(request)
         headers = context.state.setdefault("headers", {})
         existing_version = (
@@ -94,9 +102,18 @@ _ADK_AGENT_EXECUTOR_EXTENSION_URI = (
 
 
 async def _add_v0_3_compat_interface(card: AgentCard) -> AgentCard:
-    """Advertise a v0.3 JSON-RPC interface so the served card stays consumable by
-    v0.3 A2A clients — notably Gemini Enterprise registration, whose validator
-    still requires the 0.3 card shape (top-level ``url``/``protocolVersion``)."""
+    """Advertises a v0.3 JSON-RPC interface on the served A2A `AgentCard`.
+
+    Ensures the served card remains consumable by v0.3 A2A clients, notably
+    Gemini Enterprise registration, whose validator requires the v0.3 card
+    shape.
+
+    Args:
+        card: Base `AgentCard` constructed by `AgentCardBuilder`.
+
+    Returns:
+        Mutated `AgentCard` with an additional v0.3 `AgentInterface` entry.
+    """
     if card.supported_interfaces:
         card.supported_interfaces.append(
             AgentInterface(
@@ -109,7 +126,12 @@ async def _add_v0_3_compat_interface(card: AgentCard) -> AgentCard:
 
 
 def _default_capabilities() -> AgentCapabilities:
-    """Returns the default A2A capabilities used by scaffolded projects."""
+    """Builds the default A2A `AgentCapabilities` advertised by the server.
+
+    Returns:
+        `AgentCapabilities` with streaming enabled and the ADK executor
+        extension registered.
+    """
     return AgentCapabilities(
         streaming=True,
         extensions=[
@@ -134,14 +156,25 @@ async def attach_a2a_routes(
     agent_version: str | None = None,
     app_url: str | None = None,
 ) -> None:
-    """Register A2A routes (JSON-RPC + agent-card endpoints) under ``rpc_path``.
+    """Registers A2A JSON-RPC and agent-card routes under `rpc_path`.
 
-    Builds a dynamic agent card from ``agent`` and mounts the routes on ``app``.
-    The ``runner`` should share the session/artifact/memory services with the
-    standard ADK path. ``capabilities``, ``agent_version``, and ``app_url``
-    override their defaults (streaming + ADK extension, ``AGENT_VERSION``,
-    ``APP_URL``). Call once per app — typically in a FastAPI ``lifespan``, since
-    the card is built asynchronously; repeated calls register duplicate routes.
+    Builds a dynamic agent card from `agent` and mounts the routes on `app`.
+    The `runner` should share the session, artifact, and memory services with
+    the standard ADK path. Call once per app (typically inside a FastAPI
+    `lifespan` context manager).
+
+    Args:
+        app: FastAPI application on which to mount the A2A routes.
+        agent: Root ADK `BaseAgent` exposed over A2A.
+        runner: Shared ADK `Runner` instance executing agent turns.
+        task_store: A2A `TaskStore` tracking in-flight and completed tasks.
+        rpc_path: URL path prefix for the A2A JSON-RPC endpoint (for example,
+            `/a2a/app`).
+        capabilities: Optional `AgentCapabilities` override.
+        agent_version: Optional version string override (defaults to
+            `AGENT_VERSION` env var or `"0.1.0"`).
+        app_url: Optional externally reachable base URL override (defaults to
+            `APP_URL` env var or `"http://0.0.0.0:8000"`).
     """
     resolved_app_url = app_url or os.getenv("APP_URL", "http://0.0.0.0:8000")
     resolved_agent_version = agent_version or os.getenv(

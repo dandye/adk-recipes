@@ -14,8 +14,8 @@
 
 """Process-wide ADK session/artifact services shared by every serving surface.
 
-Registered under ``shared://`` so the ADK web routes, the A2A path, and the
-reasoning_engine adapter share one instance: a session created on any surface
+Registered under `shared://` so the ADK web routes, the A2A path, and the
+`reasoning_engine` adapter share one instance: a session created on any surface
 is visible to the others.
 """
 
@@ -24,11 +24,16 @@ from __future__ import annotations
 import functools
 import os
 
-from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
+from google.adk.artifacts import (
+    BaseArtifactService,
+    GcsArtifactService,
+    InMemoryArtifactService,
+)
 from google.adk.cli.service_registry import get_service_registry
 from google.adk.cli.utils.service_factory import (
     create_session_service_from_options,
 )
+from google.adk.sessions.base_session_service import BaseSessionService
 
 SESSION_SERVICE_URI = "shared://session"
 ARTIFACT_SERVICE_URI = "shared://artifact"
@@ -39,8 +44,18 @@ _AGENT_DIR = os.path.dirname(
 
 
 @functools.cache
-def get_session_service():
-    """Process-wide session service shared across every serving surface."""
+def get_session_service() -> BaseSessionService:
+    """Returns the process-wide ADK session service shared across surfaces.
+
+    Resolution order:
+    1. `SESSION_SERVICE_URI` environment variable (via ADK service factory).
+    2. `GOOGLE_CLOUD_AGENT_ENGINE_ID` environment variable
+       (`VertexAiSessionService`).
+    3. `InMemorySessionService` fallback for local development and tests.
+
+    Returns:
+        Singleton `BaseSessionService` instance for the current process.
+    """
     if uri := os.environ.get("SESSION_SERVICE_URI"):
         return create_session_service_from_options(
             base_dir=_AGENT_DIR, session_service_uri=uri
@@ -66,8 +81,15 @@ def get_session_service():
 
 
 @functools.cache
-def get_artifact_service():
-    """Process-wide artifact service: GCS when a bucket is set, else in-memory."""
+def get_artifact_service() -> BaseArtifactService:
+    """Returns the process-wide ADK artifact service shared across surfaces.
+
+    Uses `GcsArtifactService` when `LOGS_BUCKET_NAME` is configured, or falls
+    back to `InMemoryArtifactService` for local development and testing.
+
+    Returns:
+        Singleton `BaseArtifactService` instance for the current process.
+    """
     if bucket := os.environ.get("LOGS_BUCKET_NAME"):
         return GcsArtifactService(bucket_name=bucket)
     return InMemoryArtifactService()

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""End-to-end FastAPI and A2A server integration tests for SecOps agents."""
+
 import json
 import logging
 import os
@@ -38,13 +40,22 @@ HEADERS = {"Content-Type": "application/json"}
 
 
 def log_output(pipe: Any, log_func: Any) -> None:
-    """Log the output from the given pipe."""
+    """Forwards lines from a subprocess pipe to a logging function.
+
+    Args:
+        pipe: Text stream (`stdout` or `stderr`) attached to the subprocess.
+        log_func: Logging callable (such as `logger.info` or `logger.error`).
+    """
     for line in iter(pipe.readline, ""):
         log_func(line.strip())
 
 
 def start_server() -> subprocess.Popen[str]:
-    """Start the FastAPI server using subprocess and log its output."""
+    """Starts the FastAPI server subprocess and logs its output streams.
+
+    Returns:
+        Running `subprocess.Popen` handle for the Uvicorn server.
+    """
     command = [
         sys.executable,
         "-m",
@@ -78,7 +89,15 @@ def start_server() -> subprocess.Popen[str]:
 
 
 def wait_for_server(timeout: int = 90, interval: int = 1) -> bool:
-    """Wait for the server to be ready."""
+    """Polls `/docs` until the FastAPI server responds with HTTP 200.
+
+    Args:
+        timeout: Maximum wait time in seconds before giving up.
+        interval: Sleep interval in seconds between polling attempts.
+
+    Returns:
+        `True` if the server became ready within `timeout`, otherwise `False`.
+    """
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
@@ -95,7 +114,14 @@ def wait_for_server(timeout: int = 90, interval: int = 1) -> bool:
 
 @pytest.fixture(scope="session")
 def server_fixture(request: Any) -> Iterator[subprocess.Popen[str]]:
-    """Pytest fixture to start and stop the server for testing."""
+    """Session-scoped pytest fixture managing the FastAPI server process.
+
+    Args:
+        request: Pytest fixture request object used to register teardown.
+
+    Yields:
+        Running `subprocess.Popen` handle for the Uvicorn server.
+    """
     logger.info("Starting server process")
     server_process = start_server()
     if not wait_for_server():
@@ -103,6 +129,7 @@ def server_fixture(request: Any) -> Iterator[subprocess.Popen[str]]:
     logger.info("Server process started")
 
     def stop_server() -> None:
+        """Terminates and waits for the background Uvicorn server process."""
         logger.info("Stopping server process")
         server_process.terminate()
         server_process.wait()
@@ -113,7 +140,11 @@ def server_fixture(request: Any) -> Iterator[subprocess.Popen[str]]:
 
 
 def test_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
-    """Test the chat stream functionality."""
+    """Tests streaming chat events over `/run_sse`.
+
+    Args:
+        server_fixture: Running Uvicorn server fixture.
+    """
     logger.info("Starting chat stream test")
     # Create session first
     user_id = "test_user_123"
@@ -178,7 +209,11 @@ def test_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
 def test_chat_stream_error_handling(
     server_fixture: subprocess.Popen[str],
 ) -> None:
-    """Test the chat stream error handling."""
+    """Tests that malformed `/run_sse` payloads return HTTP 422.
+
+    Args:
+        server_fixture: Running Uvicorn server fixture.
+    """
     logger.info("Starting chat stream error handling test")
     data = {
         "input": {
@@ -196,7 +231,11 @@ def test_chat_stream_error_handling(
 
 
 def test_a2a_agent_card(server_fixture: subprocess.Popen[str]) -> None:
-    """Test the A2A agent card discovery endpoint."""
+    """Tests the A2A `.well-known/agent-card.json` discovery endpoint.
+
+    Args:
+        server_fixture: Running Uvicorn server fixture.
+    """
     response = requests.get(AGENT_CARD_URL, headers=HEADERS, timeout=10)
     assert response.status_code == 200
     assert response.json().get("name") in {"secops_supervisor", "secops_agent"}

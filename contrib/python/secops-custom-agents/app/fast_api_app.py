@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""FastAPI server for the Google SecOps canonical ADK recipe.
+
+Exposes the standard ADK web and API routes (`get_fast_api_app`), Agent2Agent
+(A2A) protocol JSON-RPC and `.well-known/agent-card.json` discovery routes, and
+Vertex AI Agent Engine (`:query` / `:streamQuery`) compatibility routes.
+"""
+
 import contextlib
 import os
 from collections.abc import AsyncIterator
@@ -31,6 +38,10 @@ from app.app_utils.reasoning_engine_adapter import (
 
 load_dotenv()
 
+for _k, _v in list(os.environ.items()):
+    if _v.startswith(("<TODO", "<YOUR_")):
+        del os.environ[_k]
+
 # Cloud telemetry needs Application Default Credentials. Resolve them here
 # rather than letting get_fast_api_app raise DefaultCredentialsError at
 # import time: a container built from this template has no ADC in CI, and an
@@ -41,7 +52,11 @@ except Exception:
     project_id = None
 
 allow_origins = (
-    os.getenv("ALLOW_ORIGINS", "").split(",")
+    [
+        origin.strip()
+        for origin in os.getenv("ALLOW_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
     if os.getenv("ALLOW_ORIGINS")
     else None
 )
@@ -51,6 +66,14 @@ AGENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Initializes the ADK Runner and attaches A2A routes on startup.
+
+    Args:
+        app: FastAPI application instance being initialized.
+
+    Yields:
+        Control back to FastAPI while the application serves requests.
+    """
     from app.agent import app as adk_app
     from app.agent import root_agent
 
@@ -93,4 +116,4 @@ attach_reasoning_engine_routes(app)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104 -- container entrypoint

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Integration test for streaming responses from the Google SecOps ADK agent."""
+
 from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -21,11 +23,7 @@ from app.agent import create_agent
 
 
 def test_agent_stream() -> None:
-    """
-    Integration test for the agent stream functionality.
-    Tests that the agent returns valid streaming responses.
-    """
-
+    """Verifies that the SecOps ADK agent returns valid streaming events."""
     session_service = InMemorySessionService()
 
     session = session_service.create_session_sync(

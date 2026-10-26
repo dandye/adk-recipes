@@ -12,18 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Serve the reasoning_engine ``{class_method, input}`` contract over HTTP.
+"""Serve the reasoning_engine `{class_method, input}` contract over HTTP.
 
 Exists to guarantee support for the Vertex AI Console Playground and Gemini
 Enterprise (via ADK registration), which both invoke the engine through this
-contract. Agent Engine forwards calls to ``/api/reasoning_engine`` (sync) and
-``/api/stream_reasoning_engine`` (streaming); dispatch is limited to the
-:class:`AdkApp` ``register_operations()`` methods so the wire output matches a
+contract. Agent Engine forwards calls to `/api/reasoning_engine` (sync) and
+`/api/stream_reasoning_engine` (streaming); dispatch is limited to the
+`AdkApp` `register_operations()` methods so the wire output matches a
 packaged Agent Engine.
 """
 
 import inspect
 import json
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 from agentplatform.agent_engines.templates.adk import AdkApp
 from fastapi import FastAPI, HTTPException, Request, encoders, responses, status
@@ -32,17 +34,34 @@ from app.app_utils import services
 
 
 def _no_op_instrumentor_builder(project_id: str) -> None:
-    """No-op so set_up() keeps the startup instrumentor and generate_content spans."""
+    """No-op builder so `set_up()` preserves startup telemetry instrumentation.
+
+    Args:
+        project_id: Google Cloud project ID passed by `AdkApp.set_up()`.
+
+    Returns:
+        Always returns `None`.
+    """
     return None
 
 
 def attach_reasoning_engine_routes(app: FastAPI) -> None:
-    """Register reasoning_engine routes that dispatch to an AdkApp."""
+    """Registers `/api/reasoning_engine` and `/api/stream_reasoning_engine`.
+
+    Args:
+        app: FastAPI application instance on which to mount the routes.
+    """
     runtime: AdkApp | None = None
     streaming_methods: set[str] = set()
     sync_methods: set[str] = set()
 
     def get_runtime() -> AdkApp:
+        """Lazily initializes and caches the `AdkApp` runtime instance.
+
+        Returns:
+            Initialized `AdkApp` sharing process-wide session and artifact
+            services.
+        """
         nonlocal runtime, streaming_methods, sync_methods
         if runtime is None:
             from app.agent import app as adk_app
@@ -67,7 +86,20 @@ def attach_reasoning_engine_routes(app: FastAPI) -> None:
             runtime = candidate
         return runtime
 
-    def resolve_method(body: object, *, streaming: bool):
+    def resolve_method(body: object, *, streaming: bool) -> Callable[..., Any]:
+        """Resolves and validates the requested `class_method` on `AdkApp`.
+
+        Args:
+            body: Parsed JSON request body expected to contain `class_method`.
+            streaming: Whether the caller is invoking the streaming endpoint.
+
+        Returns:
+            Bound method on the `AdkApp` runtime instance.
+
+        Raises:
+            HTTPException: With status 400 if `class_method` is missing, or 404
+                if `class_method` is not registered for the requested mode.
+        """
         class_method = (
             body.get("class_method") if isinstance(body, dict) else None
         )
@@ -87,10 +119,23 @@ def attach_reasoning_engine_routes(app: FastAPI) -> None:
 
     @app.post("/api/stream_reasoning_engine")
     async def stream_query(request: Request) -> responses.StreamingResponse:
+        """Handles streaming `:streamQuery` calls forwarded by Agent Engine.
+
+        Args:
+            request: Incoming FastAPI HTTP `Request`.
+
+        Returns:
+            `StreamingResponse` yielding newline-delimited JSON event chunks.
+        """
         body = await request.json()
         method = resolve_method(body, streaming=True)
 
-        async def generator():
+        async def generator() -> AsyncIterator[str]:
+            """Yields newline-delimited JSON chunks from sync or async streams.
+
+            Yields:
+                JSON-serialized event strings terminated by a newline.
+            """
             # `streaming_methods` merges the registry's SYNC `stream` bucket
             # with its `async_stream` one, so this is either a plain generator
             # or an async one. A plain generator has no `__aiter__`, and
@@ -113,6 +158,14 @@ def attach_reasoning_engine_routes(app: FastAPI) -> None:
 
     @app.post("/api/reasoning_engine")
     async def query(request: Request) -> responses.JSONResponse:
+        """Handles synchronous `:query` calls forwarded by Agent Engine.
+
+        Args:
+            request: Incoming FastAPI HTTP `Request`.
+
+        Returns:
+            `JSONResponse` wrapping the method result in `{"output": ...}`.
+        """
         body = await request.json()
         method = resolve_method(body, streaming=False)
         kwargs = body.get("input") or {}
