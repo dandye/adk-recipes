@@ -371,7 +371,7 @@ def deploy_to_agent_engine(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    """Build the command-line argument parser for `deployment.deploy`.
+    """Build the command-line argument parser for `app.deploy`.
 
     Returns:
         Configured `argparse.ArgumentParser` instance.
@@ -434,7 +434,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entrypoint for `python -m deployment.deploy`.
+    """CLI entrypoint for `python -m app.deploy`.
 
     Args:
         argv: Optional sequence of CLI arguments.

@@ -176,10 +176,8 @@ async def attach_a2a_routes(
         app_url: Optional externally reachable base URL override (defaults to
             `APP_URL` env var or `"http://0.0.0.0:8000"`).
     """
-    resolved_app_url = app_url or os.getenv("APP_URL", "http://0.0.0.0:8000")
-    resolved_agent_version = agent_version or os.getenv(
-        "AGENT_VERSION", "0.1.0"
-    )
+    resolved_app_url = app_url or os.getenv("APP_URL") or ""
+    resolved_agent_version = agent_version or os.getenv("AGENT_VERSION") or ""
     resolved_capabilities = capabilities or _default_capabilities()
 
     agent_card = await AgentCardBuilder(

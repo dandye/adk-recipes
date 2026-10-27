@@ -13,15 +13,9 @@
 # limitations under the License.
 """Runnability tests for the recipe."""
 
-import os
-
 
 def test_agent_runnability() -> None:
     """Verify agent.py imports and defines the expected globals."""
-    # Set INTEGRATION_TEST so helpers imported by agent.py take their mock path;
-    # the setup must happen before the import.
-    os.environ.setdefault("INTEGRATION_TEST", "TRUE")
-
     import app.agent
 
     assert app.agent.root_agent is not None

@@ -53,13 +53,14 @@ try:
 except (google.auth.exceptions.DefaultCredentialsError, OSError):
     project_id = None
 
+raw_allow_origins = os.getenv("ALLOW_ORIGINS")
 allow_origins = (
     [
         origin.strip()
-        for origin in os.getenv("ALLOW_ORIGINS", "").split(",")
+        for origin in raw_allow_origins.split(",")
         if origin.strip()
     ]
-    if os.getenv("ALLOW_ORIGINS")
+    if raw_allow_origins
     else None
 )
 

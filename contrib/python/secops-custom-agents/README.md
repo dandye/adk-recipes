@@ -52,8 +52,9 @@ flowchart TD
 ```text
 secops-custom-agents/
 ├── app/
-│   ├── __init__.py           # Package entrypoint: loads .env and exports agent, app, root_agent
+│   ├── __init__.py           # Package entrypoint: loads .env/config.env and exports agent, app, root_agent
 │   ├── agent.py              # Adaptive agent builder (persona hierarchy vs. unified frontier agent)
+│   ├── deploy.py             # Vertex AI Agent Engine deployment helper (python -m app.deploy)
 │   ├── fast_api_app.py       # FastAPI server with ADK web, A2A, and Agent Engine routes
 │   ├── mcp_tools.py          # SecOps OneMCP + GTI MCP toolsets, tool filters, and schema callbacks
 │   ├── personas.py           # Specialist persona registry and Markdown overlay loader
@@ -62,14 +63,12 @@ secops-custom-agents/
 │   ├── app_utils/            # Shared A2A, Agent Engine, and session/artifact service adapters
 │   ├── profiles/             # Role-specific Markdown persona instructions (5 SOC specialists)
 │   └── skills/               # 6 progressive-disclosure SecOps SKILL.md runbooks
-├── deployment/
-│   ├── __init__.py
-│   └── deploy.py             # Vertex AI Agent Engine deployment helper
 ├── tests/
 │   ├── test_runnability.py   # Recipe import and symbol smoke test
 │   ├── unit/                 # Offline unit tests for personas, skills, MCP filters, and A2A boot
 │   └── integration/          # Live streaming and end-to-end FastAPI/A2A integration tests
 ├── .env.example              # Environment variable template
+├── agents-cli-manifest.yaml  # ADK deployment CLI manifest
 ├── config.env.example        # Agent Starter Pack / Agent Garden config template
 ├── Dockerfile                # Cloud Run / container deployment image
 ├── Makefile                  # Install, sync-config, setup-infra, playground, and deploy targets
@@ -119,9 +118,9 @@ SECOPS_USE_PERSONAS=false uv run adk run app
 
 | # | Query | What It Demonstrates |
 | --- | --- | --- |
-| 1 | `"List the open alerts in our SecOps tenant from the last 24 hours and triage the highest-severity login alert."` | Routes to `secops_triage_specialist`, loads `triage-alerts` and `suspicious-login-triage` via `SkillToolset`, and queries `secops_get_security_alerts` + `secops_search_security_events`. |
-| 2 | `"Profile GTI collection report--25-10035907 and hunt for matching network and process activity across our SIEM over the last 7 days."` | Coordinates `secops_cti_researcher` (`gti_get_collection_report`, `gti_get_collection_iocs`) with `secops_threat_hunter` (`gti-collection-threat-hunt` skill + UDM hunting). |
-| 3 | `"Validate a YARA-L 2.0 rule detecting suspicious rundll32.exe execution and check its historical alert volume."` | Routes to `secops_detection_engineer`, loads `detection-rule-validation-tuning`, verifies syntax via `secops_verify_rule`, and backtests via `secops_test_rule`. |
+| 1 | `"List the open alerts in our SecOps tenant from the last 24 hours and triage the highest-severity login alert."` | Routes to `secops_triage_specialist`, loads `triage-alerts` and `suspicious-login-triage` via `SkillToolset`, and queries `secops_list_security_alerts` + `secops_search_security_events`. |
+| 2 | `"Profile GTI collection report--25-10035907 and hunt for matching network and process activity across our SIEM over the last 7 days."` | Coordinates `secops_cti_researcher` (`gti_get_collection_report`, `gti_get_entities_related_to_a_collection`) with `secops_threat_hunter` (`gti-collection-threat-hunt` skill + UDM hunting). |
+| 3 | `"Validate a YARA-L 2.0 rule detecting suspicious rundll32.exe execution and check its historical alert volume."` | Routes to `secops_detection_engineer`, loads `detection-rule-validation-tuning`, verifies syntax via `secops_verify_rule_text` / `secops_validate_yaral2_rule`, and backtests via `secops_evaluate_rule_coverage_long_running`. |
 | 4 | `"Evaluate whether SHA-256 hash <hash> observed on workstation-04 should be contained or excluded as a signed OS LOLBin."` | Routes to `secops_incident_responder`, loads `ioc-containment`, checks `gti_get_file_report` for `VALID_CERTIFICATE`, and produces a 4-way Disposition and Containment Matrix. |
 
 ## Deploy with Agent Starter Pack (Vertex AI Agent Garden)
@@ -138,8 +137,7 @@ uvx agent-starter-pack==0.41.0 create "$AGENT_NAME" \
   -a "$RECIPE_URL"
 
 cd "$AGENT_NAME"
-PROJECT_ID="$(gcloud config get-value project 2>/dev/null)"
-sed "s/your-gcp-project-id/${PROJECT_ID}/g" config.env.example > config.env
+make sync-config
 
 # Populate CHRONICLE_CUSTOMER_ID and GTI_API_KEY in config.env before deploying:
 make install && make setup-infra && make deploy-agent-engine

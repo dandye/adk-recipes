@@ -21,7 +21,7 @@ dependencies:
     - "Cloud Run"
 
 ownership:
-  team: "Google Cloud Security"
+  team: "Google SecOps Customer Engineering"
   poc: "dandye"
 
 tags:

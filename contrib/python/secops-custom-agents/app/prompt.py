@@ -122,9 +122,9 @@ def build_tenant_context_banner(
         else os.getenv("CHRONICLE_CUSTOMER_ID")
     ) or "<CHRONICLE_CUSTOMER_ID>"
     region = (
-        env.get("CHRONICLE_REGION", "us")
+        env.get("CHRONICLE_REGION")
         if env is not None
-        else os.getenv("CHRONICLE_REGION", "us")
+        else os.getenv("CHRONICLE_REGION")
     ) or "us"
     return (
         "\n\n## Active Google SecOps Tenant Parameters\n"

@@ -28,8 +28,16 @@ install:
 # runtime configuration when bundled for Vertex AI Agent Engine.
 sync-config:
 	@if [ ! -f config.env ]; then \
-		PROJECT_ID=$$(gcloud config get-value project 2>/dev/null || echo "your-gcp-project-id"); \
-		sed "s/your-gcp-project-id/$${PROJECT_ID}/g" config.env.example > config.env; \
+		PROJECT_ID=$$(gcloud config get-value project 2>/dev/null || echo "<TODO: update-this-value>"); \
+		if [ -n "$${PROJECT_ID}" ] && [ "$${PROJECT_ID}" != "<TODO: update-this-value>" ]; then \
+			sed -e "s|^PROJECT_ID=.*|PROJECT_ID=$${PROJECT_ID}|" \
+				-e "s|^GCP_PROJECT_ID=.*|GCP_PROJECT_ID=$${PROJECT_ID}|" \
+				-e "s|^GOOGLE_CLOUD_PROJECT=.*|GOOGLE_CLOUD_PROJECT=$${PROJECT_ID}|" \
+				-e "s|^CHRONICLE_PROJECT_ID=.*|CHRONICLE_PROJECT_ID=$${PROJECT_ID}|" \
+				config.env.example > config.env; \
+		else \
+			cp config.env.example config.env; \
+		fi; \
 		echo "Created config.env from config.env.example (PROJECT_ID=$${PROJECT_ID})."; \
 	fi
 	@cp config.env app/config.env
@@ -40,7 +48,7 @@ setup-infra: sync-config
 	@echo "| Configuring Google Cloud Project & Enabling Required APIs                   |"
 	@echo "==============================================================================="
 	@source config.env && \
-		if [ -n "$${PROJECT_ID}" ] && [ "$${PROJECT_ID}" != "your-gcp-project-id" ]; then \
+		if [ -n "$${PROJECT_ID}" ] && [ "$${PROJECT_ID}" != "<TODO: update-this-value>" ] && [ "$${PROJECT_ID}" != "your-gcp-project-id" ]; then \
 			gcloud config set project "$${PROJECT_ID}" --quiet && \
 			gcloud services enable \
 				aiplatform.googleapis.com \
@@ -49,7 +57,7 @@ setup-infra: sync-config
 				serviceusage.googleapis.com \
 				--project="$${PROJECT_ID}" --quiet; \
 		else \
-			echo "Notice: PROJECT_ID in config.env is still set to placeholder 'your-gcp-project-id'."; \
+			echo "Notice: PROJECT_ID in config.env is still set to a placeholder."; \
 			echo "Update config.env with your GCP project ID, CHRONICLE_CUSTOMER_ID, and GTI_API_KEY."; \
 		fi
 

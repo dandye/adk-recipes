@@ -122,9 +122,9 @@ def validate_secops_onemcp_config(
         else os.getenv("CHRONICLE_CUSTOMER_ID")
     )
     region = (
-        env.get("CHRONICLE_REGION", "us")
+        env.get("CHRONICLE_REGION")
         if env is not None
-        else os.getenv("CHRONICLE_REGION", "us")
+        else os.getenv("CHRONICLE_REGION")
     )
 
     missing: list[str] = []
@@ -198,11 +198,11 @@ def resolve_secops_onemcp_url(
     if explicit_url and not _is_missing_or_placeholder(explicit_url):
         return explicit_url.strip()
     raw_region = (
-        env.get("CHRONICLE_REGION", "us")
+        env.get("CHRONICLE_REGION")
         if env is not None
-        else os.getenv("CHRONICLE_REGION", "us")
+        else os.getenv("CHRONICLE_REGION")
     )
-    region = (raw_region or "us").strip()
+    region = (raw_region or "").strip()
     if _is_missing_or_placeholder(region):
         region = "us"
     return f"https://chronicle.{region}.rep.googleapis.com/mcp"
@@ -609,16 +609,16 @@ def build_gti_mcp_toolset(
         )
 
     raw_cmd = (
-        env.get("GTI_MCP_COMMAND", "uvx")
+        env.get("GTI_MCP_COMMAND")
         if env is not None
-        else os.getenv("GTI_MCP_COMMAND", "uvx")
+        else os.getenv("GTI_MCP_COMMAND")
     )
     raw_args = (
-        env.get("GTI_MCP_ARGS", "gti-mcp")
+        env.get("GTI_MCP_ARGS")
         if env is not None
-        else os.getenv("GTI_MCP_ARGS", "gti-mcp")
+        else os.getenv("GTI_MCP_ARGS")
     )
-    command = (raw_cmd or "uvx").strip()
+    command = (raw_cmd or "").strip() or "uvx"
     args = (
         shlex.split(raw_args) if raw_args and raw_args.strip() else ["gti-mcp"]
     )

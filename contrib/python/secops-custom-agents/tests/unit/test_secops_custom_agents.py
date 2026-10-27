@@ -344,12 +344,12 @@ def test_fastapi_and_a2a_agent_card_boot(
     """
     from fastapi.testclient import TestClient
 
-    from app.fast_api_app import app
-
     monkeypatch.setenv("INTEGRATION_TEST", "1")
     monkeypatch.delenv("CHRONICLE_PROJECT_ID", raising=False)
     monkeypatch.delenv("CHRONICLE_CUSTOMER_ID", raising=False)
     monkeypatch.delenv("VT_APIKEY", raising=False)
+
+    from app.fast_api_app import app
 
     with TestClient(app) as client:
         apps_resp = client.get("/list-apps")

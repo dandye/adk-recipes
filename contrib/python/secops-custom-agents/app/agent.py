@@ -67,11 +67,11 @@ def _resolve_use_personas(
     if use_personas is not None:
         return use_personas
     raw_val = (
-        env.get("SECOPS_USE_PERSONAS", "true")
+        env.get("SECOPS_USE_PERSONAS")
         if env is not None
-        else os.getenv("SECOPS_USE_PERSONAS", "true")
+        else os.getenv("SECOPS_USE_PERSONAS")
     )
-    raw = (raw_val or "true").strip().lower()
+    raw = (raw_val or "").strip().lower()
     return raw not in {"false", "0", "no", "off", "frontier"}
 
 
