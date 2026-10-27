@@ -79,35 +79,20 @@ playground: sync-config
 
 deploy-agent-engine: sync-config
 	@source config.env && \
-	if [ -n "$${PROJECT_ID}" ] && [ "$${PROJECT_ID}" != "your-gcp-project-id" ]; then \
+	if [ -n "$${PROJECT_ID}" ] && [ "$${PROJECT_ID}" != "<TODO: update-this-value>" ] && [ "$${PROJECT_ID}" != "your-gcp-project-id" ]; then \
 		gcloud config set project "$${PROJECT_ID}" --quiet; \
 	fi && \
 	(uv export --no-hashes --no-header --no-dev --no-emit-project --no-annotate > app/app_utils/.requirements.txt 2>/dev/null || \
 	uv export --no-hashes --no-header --no-dev --no-emit-project > app/app_utils/.requirements.txt) && \
 	ENV_VARS=$$(uv run python -m app.deploy --config-file=config.env --print-env-vars $(if $(SET_ENV_VARS),--set-env-vars="$(SET_ENV_VARS)")) && \
-	if [ -f app/app_utils/deploy.py ]; then \
-		uv run -m app.app_utils.deploy \
-			--project="$${PROJECT_ID}" \
-			--location="$${DEFAULT_REGION:-us-central1}" \
-			--source-packages=./app \
-			--entrypoint-module=app.agent_engine_app \
-			--entrypoint-object=agent_engine \
-			--requirements-file=app/app_utils/.requirements.txt \
-			--display-name=secops-custom-agents \
-			--description="Autonomous Google Security Operations (SecOps) ADK agent" \
-			$${ENV_VARS:+--set-env-vars="$${ENV_VARS}"} \
-			$(if $(AGENT_IDENTITY),--agent-identity) \
-			$(if $(filter command line,$(origin SECRETS)),--set-secrets="$(SECRETS)"); \
-	else \
-		uv run -m app.deploy \
-			--project="$${PROJECT_ID}" \
-			--location="$${DEFAULT_REGION:-us-central1}" \
-			--source-packages=./app \
-			--requirements-file=app/app_utils/.requirements.txt \
-			--display-name=secops-custom-agents \
-			--config-file=config.env \
-			$${ENV_VARS:+--set-env-vars="$${ENV_VARS}"}; \
-	fi
+	uv run -m app.deploy \
+		--project="$${PROJECT_ID}" \
+		--location="$${DEFAULT_REGION:-us-central1}" \
+		--source-packages=./app \
+		--requirements-file=app/app_utils/.requirements.txt \
+		--display-name=secops-custom-agents \
+		--config-file=config.env \
+		$${ENV_VARS:+--set-env-vars="$${ENV_VARS}"}
 
 deploy: deploy-agent-engine
 

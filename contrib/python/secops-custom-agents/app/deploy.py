@@ -32,7 +32,7 @@ from typing import Any
 
 import google.auth
 import vertexai
-from dotenv import dotenv_values, load_dotenv
+from dotenv import dotenv_values
 from vertexai import agent_engines
 
 from app.agent import root_agent
@@ -284,9 +284,6 @@ def deploy_to_agent_engine(
     Raises:
         ValueError: If no GCP project ID can be resolved.
     """
-    load_dotenv(config_file)
-    load_dotenv()
-
     merged_env: dict[str, str] = {}
     merged_env.update(load_env_file(".env"))
     merged_env.update(load_env_file(config_file))

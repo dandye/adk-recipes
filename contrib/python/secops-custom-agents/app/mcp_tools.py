@@ -81,13 +81,16 @@ def _is_missing_or_placeholder(value: str | None) -> bool:
         value: Raw environment variable string or `None`.
 
     Returns:
-        `True` if `value` is `None`, empty/whitespace, or starts with a
-        `<TODO:` or `<YOUR_` placeholder prefix; `False` otherwise.
+        `True` if `value` is `None`, empty/whitespace, equals
+        `"your-gcp-project-id"`, or starts with a `<TODO` or `<YOUR_`
+        placeholder prefix; `False` otherwise.
     """
     if value is None:
         return True
     stripped = value.strip()
-    return not stripped or stripped.startswith(("<TODO:", "<YOUR_"))
+    if stripped in {"", "your-gcp-project-id"}:
+        return True
+    return stripped.startswith(("<TODO", "<YOUR_"))
 
 
 def validate_secops_onemcp_config(

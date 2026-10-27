@@ -171,10 +171,10 @@ async def attach_a2a_routes(
         rpc_path: URL path prefix for the A2A JSON-RPC endpoint (for example,
             `/a2a/app`).
         capabilities: Optional `AgentCapabilities` override.
-        agent_version: Optional version string override (defaults to
-            `AGENT_VERSION` env var or `"0.1.0"`).
+        agent_version: Optional version string override (defaults to the
+            `AGENT_VERSION` env var, or empty string when unset).
         app_url: Optional externally reachable base URL override (defaults to
-            `APP_URL` env var or `"http://0.0.0.0:8000"`).
+            the `APP_URL` env var, or empty string when unset).
     """
     resolved_app_url = app_url or os.getenv("APP_URL") or ""
     resolved_agent_version = agent_version or os.getenv("AGENT_VERSION") or ""
