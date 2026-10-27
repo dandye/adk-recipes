@@ -146,6 +146,12 @@ make install && make setup-infra && make deploy-agent-engine
 make register-gemini-enterprise
 ```
 
+## End-to-End Argolis Verification Screencast
+
+See [`secops_custom_agents_argolis_screencast_walkthrough.md`](secops_custom_agents_argolis_screencast_walkthrough.md) for the complete 3-scene 1080p verification walkthrough (`uvx agent-starter-pack create`, Vertex AI Agent Engine deployment, remote `ReasoningEngine` streaming query, and `adk web` traces/hierarchy inspection).
+
+![Google SecOps Custom Agents Argolis Verification Screencast](assets/secops_custom_agents_argolis_screencast.gif)
+
 ## Run Unit Tests
 
 Unit tests validate agent hierarchy construction, unified frontier mode, progressive `SkillToolset` loading, OneMCP feed-tool filtering, `response_json_schema` stripping, and credential validation without requiring a `.env` file or live network calls:
