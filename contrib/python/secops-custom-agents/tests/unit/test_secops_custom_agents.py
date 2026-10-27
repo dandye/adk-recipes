@@ -359,3 +359,96 @@ def test_fastapi_and_a2a_agent_card_boot(
         card_resp = client.get("/a2a/app/.well-known/agent-card.json")
         assert card_resp.status_code == 200
         assert card_resp.json()["name"] == "secops_supervisor"
+
+
+def test_agent_starter_pack_config_and_deployment_helpers(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    """Verifies Agent Starter Pack config.env and deployment helper functions.
+
+    Args:
+        tmp_path: Pytest temporary directory fixture.
+    """
+    import tomllib
+    from pathlib import Path
+
+    from app.deploy import (
+        build_env_vars_from_mapping,
+        format_env_vars_arg,
+        is_placeholder_value,
+        load_env_file,
+        load_requirements,
+        parse_key_value_pairs,
+        write_deployment_metadata,
+    )
+    from app.deploy import (
+        main as deploy_main,
+    )
+
+    recipe_root = Path(__file__).resolve().parents[2]
+    config_example = recipe_root / "config.env.example"
+    makefile_path = recipe_root / "Makefile"
+    pyproject_path = recipe_root / "pyproject.toml"
+
+    assert config_example.is_file()
+    assert makefile_path.is_file()
+    makefile_text = makefile_path.read_text(encoding="utf-8")
+    assert "deploy-agent-engine:" in makefile_text
+    assert "setup-infra:" in makefile_text
+    assert "sync-config:" in makefile_text
+
+    pyproject_data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    asp_cfg = pyproject_data["tool"]["agent-starter-pack"]
+    assert "example_question" in asp_cfg
+    assert asp_cfg["settings"]["agent_directory"] == "app"
+    assert "agent_engine" in asp_cfg["settings"]["deployment_targets"]
+
+    assert is_placeholder_value(None)
+    assert is_placeholder_value("")
+    assert is_placeholder_value("your-gcp-project-id")
+    assert is_placeholder_value("<TODO: update-this-value>")
+    assert not is_placeholder_value("secops-demo-project")
+
+    # Template config.env.example has only placeholders for project/keys
+    template_values = load_env_file(config_example)
+    assert "CHRONICLE_CUSTOMER_ID" not in template_values
+    assert "GTI_API_KEY" not in template_values
+    assert template_values["CHRONICLE_REGION"] == "us"
+
+    custom_env_file = Path(str(tmp_path)) / "config.env"
+    custom_env_file.write_text(
+        "PROJECT_ID=secops-prod-123\n"
+        "CHRONICLE_CUSTOMER_ID=a13f6726-efed-452e-9008-8fe0d3cb0f75\n"
+        "GTI_API_KEY=<TODO: update-this-value>\n",
+        encoding="utf-8",
+    )
+    loaded = load_env_file(custom_env_file)
+    env_vars = build_env_vars_from_mapping(
+        loaded,
+        extra_env_vars="CHRONICLE_REGION=eu,INVALID_PAIR",
+    )
+    assert env_vars["GCP_PROJECT_ID"] == "secops-prod-123"
+    assert "GOOGLE_CLOUD_PROJECT" not in env_vars
+    assert env_vars["CHRONICLE_PROJECT_ID"] == "secops-prod-123"
+    assert (
+        env_vars["CHRONICLE_CUSTOMER_ID"]
+        == "a13f6726-efed-452e-9008-8fe0d3cb0f75"
+    )
+    assert env_vars["CHRONICLE_REGION"] == "eu"
+    assert "GTI_API_KEY" not in env_vars
+
+    formatted = format_env_vars_arg({"B": "2", "A": "1"})
+    assert formatted == "A=1,B=2"
+    assert parse_key_value_pairs("A=1, B=<TODO: skip>") == {"A": "1"}
+    assert len(load_requirements(None)) >= 5
+
+    meta_path = Path(str(tmp_path)) / "deployment_metadata.json"
+    write_deployment_metadata(
+        "projects/123/locations/us-central1/reasoningEngines/456",
+        metadata_file=meta_path,
+    )
+    assert meta_path.is_file()
+    assert (
+        deploy_main(["--config-file", str(custom_env_file), "--print-env-vars"])
+        == 0
+    )

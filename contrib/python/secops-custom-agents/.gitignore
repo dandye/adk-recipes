@@ -1,0 +1,8 @@
+# Local configuration & secrets (synced by Makefile)
+config.env
+app/config.env
+.env
+
+# Generated at deploy time by `make deploy-agent-engine`
+app/app_utils/.requirements.txt
+deployment_metadata.json

@@ -62,15 +62,19 @@ secops-custom-agents/
 │   ├── app_utils/            # Shared A2A, Agent Engine, and session/artifact service adapters
 │   ├── profiles/             # Role-specific Markdown persona instructions (5 SOC specialists)
 │   └── skills/               # 6 progressive-disclosure SecOps SKILL.md runbooks
+├── deployment/
+│   ├── __init__.py
+│   └── deploy.py             # Vertex AI Agent Engine deployment helper
 ├── tests/
 │   ├── test_runnability.py   # Recipe import and symbol smoke test
 │   ├── unit/                 # Offline unit tests for personas, skills, MCP filters, and A2A boot
 │   └── integration/          # Live streaming and end-to-end FastAPI/A2A integration tests
 ├── .env.example              # Environment variable template
+├── config.env.example        # Agent Starter Pack / Agent Garden config template
 ├── Dockerfile                # Cloud Run / container deployment image
-├── Makefile                  # Standard install, playground, test, and lint targets
-├── metadata.json             # ADK recipe catalog metadata
-├── pyproject.toml            # Dependencies, Ruff, and Pytest configuration
+├── Makefile                  # Install, sync-config, setup-infra, playground, and deploy targets
+├── manifest.yaml             # ADK recipe catalog manifest
+├── pyproject.toml            # Dependencies, Agent Starter Pack settings, and Pytest configuration
 └── README.md
 ```
 
@@ -119,6 +123,30 @@ SECOPS_USE_PERSONAS=false uv run adk run app
 | 2 | `"Profile GTI collection report--25-10035907 and hunt for matching network and process activity across our SIEM over the last 7 days."` | Coordinates `secops_cti_researcher` (`gti_get_collection_report`, `gti_get_collection_iocs`) with `secops_threat_hunter` (`gti-collection-threat-hunt` skill + UDM hunting). |
 | 3 | `"Validate a YARA-L 2.0 rule detecting suspicious rundll32.exe execution and check its historical alert volume."` | Routes to `secops_detection_engineer`, loads `detection-rule-validation-tuning`, verifies syntax via `secops_verify_rule`, and backtests via `secops_test_rule`. |
 | 4 | `"Evaluate whether SHA-256 hash <hash> observed on workstation-04 should be contained or excluded as a signed OS LOLBin."` | Routes to `secops_incident_responder`, loads `ioc-containment`, checks `gti_get_file_report` for `VALID_CERTIFICATE`, and produces a 4-way Disposition and Containment Matrix. |
+
+## Deploy with Agent Starter Pack (Vertex AI Agent Garden)
+
+To scaffold and deploy this recipe using the Vertex AI Agent Garden `deploy_agent_starter_pack` workflow:
+
+```bash
+AGENT_NAME="secops-agents-${RANDOM}"
+RECIPE_URL="https://github.com/google/adk-recipes/tree/main/contrib/python/secops-custom-agents"
+
+uvx agent-starter-pack==0.41.0 create "$AGENT_NAME" \
+  -d agent_engine \
+  -ag \
+  -a "$RECIPE_URL"
+
+cd "$AGENT_NAME"
+PROJECT_ID="$(gcloud config get-value project 2>/dev/null)"
+sed "s/your-gcp-project-id/${PROJECT_ID}/g" config.env.example > config.env
+
+# Populate CHRONICLE_CUSTOMER_ID and GTI_API_KEY in config.env before deploying:
+make install && make setup-infra && make deploy-agent-engine
+
+# Optional: register the deployed Agent Engine resource in Gemini Enterprise:
+make register-gemini-enterprise
+```
 
 ## Run Unit Tests
 

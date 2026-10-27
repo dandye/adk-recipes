@@ -37,3 +37,14 @@ packages = ["app"]
 [tool.pytest.ini_options]
 pythonpath = "."
 addopts = "--ignore=tests/integration"
+
+[tool.agent-starter-pack]
+base_template = "adk"
+description = "Autonomous Google Security Operations (SecOps) ADK recipe combining Google SecOps OneMCP, progressive SkillToolset runbooks, role-scoped specialist personas, and Google Threat Intelligence (GTI) MCP."
+example_question = "Triage case 4091 and hunt for Ursnif activity across the last 7 days."
+
+[tool.agent-starter-pack.settings]
+name = "secops-custom-agents"
+agent_directory = "app"
+deployment_targets = ["agent_engine", "cloud_run"]
+interactive_command = "setup-infra && make playground"
