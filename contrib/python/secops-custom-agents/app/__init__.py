@@ -31,13 +31,13 @@ load_dotenv()
 
 # Strip <TODO...> or <YOUR_...> placeholders so code checks can treat unset
 # and unedited .env.example values identically.
-for _k, _v in list(os.environ.items()):
-    if _v.startswith(("<TODO", "<YOUR_")):
-        del os.environ[_k]
+for _env_key, _env_value in list(os.environ.items()):
+    if _env_value.startswith(("<TODO", "<YOUR_")):
+        del os.environ[_env_key]
 
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
 
-from . import agent  # noqa: E402 -- must come after load_dotenv()
-from .agent import app, root_agent  # noqa: E402
+from app import agent  # noqa: E402 -- must come after load_dotenv()
+from app.agent import app, root_agent  # noqa: E402
 
 __all__ = ["agent", "app", "root_agent"]

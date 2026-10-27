@@ -15,17 +15,17 @@
 """Loader for bundled SecOps operational skills using ADK SkillToolset.
 
 Implements the Agent Skills progressive disclosure pattern:
-  - **Level 1 (Catalog)**: Only ``name`` and ``description`` from YAML
+  - **Level 1 (Catalog)**: Only `name` and `description` from YAML
     frontmatter are injected into the initial prompt context.
-  - **Level 2 (Instructions)**: Full ``SKILL.md`` body is loaded on demand
-    when the agent invokes ``load_skill``.
+  - **Level 2 (Instructions)**: Full `SKILL.md` body is loaded on demand
+    when the agent invokes `load_skill`.
   - **Level 3 (Resources)**: Additional references or templates are loaded via
-    ``load_skill_resource`` when needed.
+    `load_skill_resource` when needed.
 
-Also provides ``make_static_instruction_provider`` to wrap system instructions
-in an ``InstructionProvider`` callable so ADK's ``{var}`` state template
-interpolation does not raise ``KeyError`` on YARA-L 2.0 braces (for example,
-``events: { $e.metadata.event_type = "USER_LOGIN" }``).
+Also provides `make_static_instruction_provider` to wrap system instructions
+in an `InstructionProvider` callable so ADK's `{var}` state template
+interpolation does not raise `KeyError` on YARA-L 2.0 braces (for example,
+`events: { $e.metadata.event_type = "USER_LOGIN" }`).
 """
 
 from __future__ import annotations
@@ -58,19 +58,19 @@ CANONICAL_SKILL_NAMES: tuple[str, ...] = (
 def make_static_instruction_provider(
     instruction_text: str,
 ) -> Callable[[Any], str]:
-    """Wrap static instruction text in a callable to bypass ADK state interpolation.
+    """Wrap static instruction text in a callable to bypass state substitution.
 
-    ADK's default string instruction processor attempts ``{key}`` state
+    ADK's default string instruction processor attempts `{key}` state
     variable substitution, which collides with curly braces inside YARA-L 2.0
-    (``YL2``) detection rules and JSON examples. Returning the instruction from
+    (`YL2`) detection rules and JSON examples. Returning the instruction from
     a callable bypasses template substitution completely.
 
     Args:
         instruction_text: The system instruction string to return verbatim.
 
     Returns:
-        A callable accepting an ADK ``ReadonlyContext`` and returning
-        ``instruction_text``.
+        A callable accepting an ADK `ReadonlyContext` and returning
+        `instruction_text`.
     """
 
     def _provider(readonly_context: Any) -> str:
@@ -92,19 +92,19 @@ def load_secops_skills(
     skills_dir: pathlib.Path = DEFAULT_SKILLS_DIR,
     skill_names: Sequence[str] | None = None,
 ) -> list[models.Skill]:
-    """Load SecOps ``SKILL.md`` definitions from disk in deterministic order.
+    """Load SecOps `SKILL.md` definitions from disk in deterministic order.
 
     Args:
         skills_dir: Base directory containing individual skill subdirectories.
-            Defaults to ``app/skills/``.
+            Defaults to `app/skills/`.
         skill_names: Optional sequence of skill folder names to load. When
-            ``None``, loads all 6 ``CANONICAL_SKILL_NAMES``.
+            `None`, loads all 6 `CANONICAL_SKILL_NAMES`.
 
     Returns:
-        A list of parsed ``google.adk.skills.models.Skill`` objects.
+        A list of parsed `google.adk.skills.models.Skill` objects.
 
     Raises:
-        FileNotFoundError: If any requested skill directory or its ``SKILL.md``
+        FileNotFoundError: If any requested skill directory or its `SKILL.md`
             file does not exist on disk.
     """
     names_to_load = (
@@ -126,18 +126,18 @@ def build_secops_skill_toolset(
     skill_names: Sequence[str] | None = None,
     additional_tools: Sequence[Any] | None = None,
 ) -> SkillToolset:
-    """Build an ADK ``SkillToolset`` for progressive SecOps runbook disclosure.
+    """Build an ADK `SkillToolset` for progressive SecOps runbook disclosure.
 
     Args:
         skills_dir: Base directory containing individual skill subdirectories.
         skill_names: Optional subset of skill names to expose to a specialist
-            persona. When ``None``, exposes all 6 canonical SecOps skills.
-        additional_tools: Optional extra ADK tools or ``McpToolset`` instances
-            that can be dynamically activated by ``adk_additional_tools``.
+            persona. When `None`, exposes all 6 canonical SecOps skills.
+        additional_tools: Optional extra ADK tools or `McpToolset` instances
+            that can be dynamically activated by `adk_additional_tools`.
 
     Returns:
-        A configured ``SkillToolset`` registering ``list_skills``,
-        ``load_skill``, and ``load_skill_resource``.
+        A configured `SkillToolset` registering `list_skills`,
+        `load_skill`, and `load_skill_resource`.
 
     Raises:
         FileNotFoundError: If any requested skill directory is missing.

@@ -15,26 +15,27 @@
 """Role-scoped SecOps specialist personas and tool/skill slice definitions.
 
 Defines the 5 canonical Security Operations Center (SOC) specialist personas:
-  1. ``triage_analyst`` (``secops_triage_specialist``) — Alert and case triage
-  2. ``threat_hunter`` (``secops_threat_hunter``) — 72h to 168h UDM hunts
-  3. ``cti_researcher`` (``secops_cti_researcher``) — GTI actor/IOC enrichment
-  4. ``detection_engineer`` (``secops_detection_engineer``) — YARA-L 2.0 rules
-  5. ``incident_responder`` (``secops_incident_responder``) — SOAR containment
+  1. `triage_analyst` (`secops_triage_specialist`): Alert and case triage
+  2. `threat_hunter` (`secops_threat_hunter`): 72h to 168h UDM hunts
+  3. `cti_researcher` (`secops_cti_researcher`): GTI actor/IOC enrichment
+  4. `detection_engineer` (`secops_detection_engineer`): YARA-L 2.0 rules
+  5. `incident_responder` (`secops_incident_responder`): SOAR containment
 
-Each ``PersonaSpec`` binds a Markdown profile under ``app/profiles/`` with a
-scoped subset of ``SkillToolset`` runbooks and ``McpToolset`` tool prefixes.
+Each `PersonaSpec` binds a Markdown profile under `app/profiles/` with a
+scoped subset of `SkillToolset` runbooks and `McpToolset` tool prefixes.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import pathlib
+from collections.abc import Mapping
 
-from app.prompt import (
-    COMPACT_SUPERVISOR_INSTRUCTION,
-    FRONTIER_UNIFIED_INSTRUCTION,
-    build_tenant_context_banner,
-)
+from app import prompt
+
+COMPACT_SUPERVISOR_INSTRUCTION = prompt.COMPACT_SUPERVISOR_INSTRUCTION
+FRONTIER_UNIFIED_INSTRUCTION = prompt.FRONTIER_UNIFIED_INSTRUCTION
+build_tenant_context_banner = prompt.build_tenant_context_banner
 
 __all__ = [
     "CANONICAL_PERSONAS",
@@ -61,13 +62,13 @@ class PersonaSpec:
     """Role-scoped specialist persona configuration.
 
     Attributes:
-        persona_id: Short identifier key (e.g. ``"triage_analyst"``).
-        agent_name: ADK agent identifier registered on ``Agent(name=...)``.
+        persona_id: Short identifier key (e.g. `"triage_analyst"`).
+        agent_name: ADK agent identifier registered on `Agent(name=...)`.
         display_name: Human-readable title for the specialist role.
         description: Concise summary exposed to the parent supervisor for
             routing and sub-agent delegation.
-        profile_filename: Markdown file name inside ``app/profiles/``.
-        skill_names: Tuple of ``SKILL.md`` directory names scoped to this role.
+        profile_filename: Markdown file name inside `app/profiles/`.
+        skill_names: Tuple of `SKILL.md` directory names scoped to this role.
         secops_tool_prefixes: Allowed Google SecOps OneMCP tool name prefixes.
         gti_tool_prefixes: Allowed Google Threat Intelligence MCP tool prefixes.
     """
@@ -81,23 +82,23 @@ class PersonaSpec:
     secops_tool_prefixes: tuple[str, ...]
     gti_tool_prefixes: tuple[str, ...]
 
-    def load_instruction(self, env: dict[str, str] | None = None) -> str:
+    def load_instruction(self, env: Mapping[str, str] | None = None) -> str:
         """Load the Markdown persona profile and append active tenant context.
 
         Args:
-            env: Optional environment dictionary override for tenant variables.
+            env: Optional environment mapping override for tenant variables.
 
         Returns:
             The complete system instruction string combining the Markdown
             persona profile and the Google SecOps tenant parameter block.
 
         Raises:
-            FileNotFoundError: If ``profile_filename`` does not exist under
-                ``PROFILES_DIR``.
+            FileNotFoundError: If `profile_filename` does not exist under
+                `PROFILES_DIR`.
         """
-        path = PROFILES_DIR / self.profile_filename
-        base = path.read_text(encoding="utf-8").strip()
-        return base + build_tenant_context_banner(env=env)
+        profile_path = PROFILES_DIR / self.profile_filename
+        base_instruction = profile_path.read_text(encoding="utf-8").strip()
+        return base_instruction + build_tenant_context_banner(env=env)
 
 
 # ---------------------------------------------------------------------------
@@ -270,27 +271,28 @@ def list_personas() -> list[PersonaSpec]:
     """Return all 5 canonical SecOps specialist personas in deterministic order.
 
     Returns:
-        A list of ``PersonaSpec`` instances sorted by ``persona_id``.
+        A list of `PersonaSpec` instances sorted by `persona_id`.
     """
     return [CANONICAL_PERSONAS[key] for key in sorted(CANONICAL_PERSONAS)]
 
 
 def get_persona(persona_id: str) -> PersonaSpec:
-    """Look up a ``PersonaSpec`` by its identifier.
+    """Look up a `PersonaSpec` by its identifier.
 
     Args:
         persona_id: Case-insensitive persona identifier (for example,
-            ``"triage_analyst"`` or ``"detection_engineer"``).
+            `"triage_analyst"` or `"detection_engineer"`).
 
     Returns:
-        The matching ``PersonaSpec`` instance.
+        The matching `PersonaSpec` instance.
 
     Raises:
-        KeyError: If ``persona_id`` is not in ``CANONICAL_PERSONAS``.
+        KeyError: If `persona_id` is not in `CANONICAL_PERSONAS`.
     """
     normalized = persona_id.strip().lower()
     if normalized not in CANONICAL_PERSONAS:
+        available_keys = sorted(CANONICAL_PERSONAS)
         raise KeyError(
-            f"Unknown persona '{persona_id}'. Available: {sorted(CANONICAL_PERSONAS)}"
+            f"Unknown persona '{persona_id}'. Available: {available_keys}"
         )
     return CANONICAL_PERSONAS[normalized]

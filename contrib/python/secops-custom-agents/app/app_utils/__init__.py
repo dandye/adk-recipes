@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared serving utilities for A2A, Vertex AI Agent Engine, and ADK services."""
+"""Shared serving utilities for A2A, Agent Engine, and ADK services."""

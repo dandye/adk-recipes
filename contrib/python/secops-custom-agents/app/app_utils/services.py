@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import functools
 import os
+import pathlib
 
 from google.adk.artifacts import (
     BaseArtifactService,
@@ -38,9 +39,7 @@ from google.adk.sessions.base_session_service import BaseSessionService
 SESSION_SERVICE_URI = "shared://session"
 ARTIFACT_SERVICE_URI = "shared://artifact"
 
-_AGENT_DIR = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
+_AGENT_DIR = str(pathlib.Path(__file__).resolve().parent.parent.parent)
 
 
 @functools.cache
@@ -97,8 +96,8 @@ def get_artifact_service() -> BaseArtifactService:
 
 _registry = get_service_registry()
 _registry.register_session_service(
-    "shared", lambda uri, **kw: get_session_service()
+    "shared", lambda _uri, **_kwargs: get_session_service()
 )
 _registry.register_artifact_service(
-    "shared", lambda uri, **kw: get_artifact_service()
+    "shared", lambda _uri, **_kwargs: get_artifact_service()
 )

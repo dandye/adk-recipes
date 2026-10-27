@@ -21,9 +21,11 @@ Vertex AI Agent Engine (`:query` / `:streamQuery`) compatibility routes.
 
 import contextlib
 import os
+import pathlib
 from collections.abc import AsyncIterator
 
 import google.auth
+import google.auth.exceptions
 from a2a.server.tasks import InMemoryTaskStore
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -38,9 +40,9 @@ from app.app_utils.reasoning_engine_adapter import (
 
 load_dotenv()
 
-for _k, _v in list(os.environ.items()):
-    if _v.startswith(("<TODO", "<YOUR_")):
-        del os.environ[_k]
+for _env_key, _env_value in list(os.environ.items()):
+    if _env_value.startswith(("<TODO", "<YOUR_")):
+        del os.environ[_env_key]
 
 # Cloud telemetry needs Application Default Credentials. Resolve them here
 # rather than letting get_fast_api_app raise DefaultCredentialsError at
@@ -48,7 +50,7 @@ for _k, _v in list(os.environ.items()):
 # unguarded otel_to_cloud=True makes the image unstartable there.
 try:
     _, project_id = google.auth.default()
-except Exception:
+except (google.auth.exceptions.DefaultCredentialsError, OSError):
     project_id = None
 
 allow_origins = (
@@ -61,7 +63,7 @@ allow_origins = (
     else None
 )
 
-AGENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+AGENT_DIR = str(pathlib.Path(__file__).resolve().parent.parent)
 
 
 @contextlib.asynccontextmanager
@@ -116,4 +118,5 @@ attach_reasoning_engine_routes(app)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104 -- container entrypoint
+    # Bind to 0.0.0.0 as container entrypoint.
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

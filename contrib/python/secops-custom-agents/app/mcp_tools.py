@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Live MCP toolset builders for Google SecOps OneMCP and Google Threat Intelligence.
+"""MCP toolset builders for Google SecOps OneMCP and Threat Intelligence.
 
-Provides production-hardened ``McpToolset`` factories and callbacks:
-  1. **Google SecOps OneMCP** (``https://chronicle.<region>.rep.googleapis.com/mcp``):
-     - Dynamic ``header_provider`` supporting Gemini Enterprise OAuth state
-       tokens (``temp:<AUTH_ID>``) and Google Application Default Credentials.
-     - Feed-management tool filter (``EXCLUDED_FEED_MANAGEMENT_TOOLS``) that
-       reduces eager ``inputSchema`` payload by 68.94% (246,347 B -> 76,507 B).
-     - ``strip_response_json_schema_callback`` to strip 3.73 MB of
-       ``response_json_schema`` bloat before each LLM call.
-  2. **Google Threat Intelligence (GTI) MCP** (``gti-mcp``):
-     - Supports both local stdio execution (``uvx gti-mcp``) with sanitized
-       child environment variables and remote Streamable HTTP (``GTI_MCP_URL``).
+Provides production-hardened `McpToolset` factories and callbacks:
+  1. **Google SecOps OneMCP**
+     (`https://chronicle.<region>.rep.googleapis.com/mcp`):
+     - Dynamic `header_provider` supporting Gemini Enterprise OAuth state
+       tokens (`temp:<AUTH_ID>`) and Google Application Default Credentials.
+     - Feed-management tool filter (`EXCLUDED_FEED_MANAGEMENT_TOOLS`) that
+       reduces eager `inputSchema` payload by 68.94% (246,347 B -> 76,507 B).
+     - `strip_response_json_schema_callback` to strip 3.73 MB of
+       `response_json_schema` bloat before each LLM call.
+  2. **Google Threat Intelligence (GTI) MCP** (`gti-mcp`):
+     - Supports both local stdio execution (`uvx gti-mcp`) with sanitized
+       child environment variables and remote Streamable HTTP (`GTI_MCP_URL`).
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ import asyncio
 import os
 import shlex
 import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import google.auth
@@ -72,14 +73,14 @@ _LAST_LOOP_REF: weakref.ReferenceType[asyncio.AbstractEventLoop] | None = None
 # Configuration Validation & URL Resolution
 # ---------------------------------------------------------------------------
 def _is_missing_or_placeholder(value: str | None) -> bool:
-    """Check whether an environment variable value is unset or a TODO placeholder.
+    """Check whether an environment value is unset or a template placeholder.
 
     Args:
-        value: Raw environment variable string or ``None``.
+        value: Raw environment variable string or `None`.
 
     Returns:
-        ``True`` if ``value`` is ``None``, empty/whitespace, or starts with a
-        ``<TODO:`` or ``<YOUR_`` placeholder prefix; ``False`` otherwise.
+        `True` if `value` is `None`, empty/whitespace, or starts with a
+        `<TODO:` or `<YOUR_` placeholder prefix; `False` otherwise.
     """
     if value is None:
         return True
@@ -88,21 +89,21 @@ def _is_missing_or_placeholder(value: str | None) -> bool:
 
 
 def validate_secops_onemcp_config(
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """Validate required Google SecOps OneMCP tenant environment variables.
 
     Args:
-        env: Optional environment dictionary override for testing. Defaults to
-            reading from ``os.environ`` via ``os.getenv``.
+        env: Optional environment mapping override for testing. Defaults to
+            reading from `os.environ` via `os.getenv`.
 
     Returns:
-        A dictionary containing validated ``"project_id"``, ``"customer_id"``,
-        and ``"region"`` strings.
+        A dictionary containing validated `"project_id"`, `"customer_id"`,
+        and `"region"` strings.
 
     Raises:
-        RuntimeError: If ``CHRONICLE_PROJECT_ID`` (or ``GOOGLE_CLOUD_PROJECT``),
-            ``CHRONICLE_CUSTOMER_ID``, or ``CHRONICLE_REGION`` is missing or
+        RuntimeError: If `CHRONICLE_PROJECT_ID` (or `GOOGLE_CLOUD_PROJECT`),
+            `CHRONICLE_CUSTOMER_ID`, or `CHRONICLE_REGION` is missing or
             still set to a template placeholder.
     """
     project_id = (
@@ -133,9 +134,10 @@ def validate_secops_onemcp_config(
         missing.append("CHRONICLE_REGION")
 
     if missing:
+        missing_str = ", ".join(missing)
         raise RuntimeError(
-            "Missing required Google SecOps OneMCP configuration: "
-            f"{', '.join(missing)}. Set these variables in your environment or .env file."
+            f"Missing required Google SecOps OneMCP configuration: "
+            f"{missing_str}. Set these variables in your environment or .env."
         )
 
     return {
@@ -146,19 +148,19 @@ def validate_secops_onemcp_config(
 
 
 def validate_gti_mcp_config(
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> str:
-    """Validate required Google Threat Intelligence (GTI) MCP API key configuration.
+    """Validate required Google Threat Intelligence (GTI) MCP API key settings.
 
     Args:
-        env: Optional environment dictionary override for testing. Defaults to
-            reading from ``os.environ`` via ``os.getenv``.
+        env: Optional environment mapping override for testing. Defaults to
+            reading from `os.environ` via `os.getenv`.
 
     Returns:
         The validated GTI / VirusTotal API key string.
 
     Raises:
-        RuntimeError: If neither ``VT_APIKEY`` nor ``GTI_API_KEY`` is set to a
+        RuntimeError: If neither `VT_APIKEY` nor `GTI_API_KEY` is set to a
             non-placeholder value.
     """
     api_key = (
@@ -168,23 +170,23 @@ def validate_gti_mcp_config(
     )
     if _is_missing_or_placeholder(api_key):
         raise RuntimeError(
-            "Missing required GTI MCP credential: set VT_APIKEY (or GTI_API_KEY) "
-            "in your environment or .env file."
+            "Missing required GTI MCP credential: set VT_APIKEY (or"
+            " GTI_API_KEY) in your environment or .env file."
         )
     return str(api_key).strip()
 
 
 def resolve_secops_onemcp_url(
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> str:
     """Resolve the regional Google SecOps OneMCP Streamable HTTP endpoint URL.
 
     Args:
-        env: Optional environment dictionary override for testing.
+        env: Optional environment mapping override for testing.
 
     Returns:
-        The explicit ``SECOPS_ONEMCP_URL`` if configured, or the regional
-        ``https://chronicle.<region>.rep.googleapis.com/mcp`` URL.
+        The explicit `SECOPS_ONEMCP_URL` if configured, or the regional
+        `https://chronicle.<region>.rep.googleapis.com/mcp` URL.
     """
     explicit_url = (
         env.get("SECOPS_ONEMCP_URL")
@@ -211,18 +213,18 @@ def should_include_secops_tool(
     tool: Any,
     allowed_prefixes: Sequence[str] | None = None,
 ) -> bool:
-    """Filter out high-bloat feed tools and optionally scope tools by persona role.
+    """Filter out high-bloat feed tools and scope tools by specialist persona.
 
     Args:
-        tool: Tool name string or an ADK ``BaseTool`` object with a ``.name``
+        tool: Tool name string or an ADK `BaseTool` object with a `.name`
             attribute.
         allowed_prefixes: Optional sequence of allowed tool name prefixes for
-            a specialist persona. When ``None``, all non-excluded SecOps tools
+            a specialist persona. When `None`, all non-excluded SecOps tools
             are allowed.
 
     Returns:
-        ``True`` if the tool should be exposed to the agent; ``False`` if it is
-        in ``EXCLUDED_FEED_MANAGEMENT_TOOLS`` or outside ``allowed_prefixes``.
+        `True` if the tool should be exposed to the agent; `False` if it is
+        in `EXCLUDED_FEED_MANAGEMENT_TOOLS` or outside `allowed_prefixes`.
     """
     tool_name = tool if isinstance(tool, str) else getattr(tool, "name", "")
     normalized = (
@@ -238,27 +240,27 @@ def should_include_secops_tool(
 def make_secops_tool_filter(
     allowed_prefixes: Sequence[str] | None = None,
 ) -> Callable[[Any, Any], bool]:
-    """Create an ADK ``ToolPredicate`` for SecOps OneMCP with feed-bloat removal.
+    """Create an ADK `ToolPredicate` for SecOps OneMCP with feed-bloat removal.
 
     Args:
         allowed_prefixes: Optional sequence of tool name prefixes permitted for
             a specialist persona.
 
     Returns:
-        A predicate callable ``(tool, readonly_context) -> bool`` suitable for
-        ``McpToolset(tool_filter=...)``.
+        A predicate callable `(tool, readonly_context) -> bool` suitable for
+        `McpToolset(tool_filter=...)`.
     """
     prefixes = tuple(allowed_prefixes) if allowed_prefixes else None
 
     def _predicate(tool: Any, readonly_context: Any = None) -> bool:
-        """Evaluate whether a SecOps OneMCP tool is permitted for the active agent.
+        """Evaluate whether a SecOps OneMCP tool is allowed for the agent.
 
         Args:
             tool: The candidate MCP tool or tool name.
             readonly_context: Optional ADK invocation readonly context.
 
         Returns:
-            ``True`` if the tool passes feed-bloat and persona prefix filters.
+            `True` if the tool passes feed-bloat and persona prefix filters.
         """
         del readonly_context
         return should_include_secops_tool(tool, allowed_prefixes=prefixes)
@@ -269,27 +271,27 @@ def make_secops_tool_filter(
 def make_gti_tool_filter(
     allowed_prefixes: Sequence[str] | None = None,
 ) -> Callable[[Any, Any], bool]:
-    """Create an ADK ``ToolPredicate`` for GTI MCP scoped to a specialist persona.
+    """Create an ADK `ToolPredicate` for GTI MCP scoped to a persona role.
 
     Args:
         allowed_prefixes: Optional sequence of GTI tool name prefixes permitted
-            for a specialist persona. When ``None``, all GTI tools are allowed.
+            for a specialist persona. When `None`, all GTI tools are allowed.
 
     Returns:
-        A predicate callable ``(tool, readonly_context) -> bool`` suitable for
-        ``McpToolset(tool_filter=...)``.
+        A predicate callable `(tool, readonly_context) -> bool` suitable for
+        `McpToolset(tool_filter=...)`.
     """
     prefixes = tuple(allowed_prefixes) if allowed_prefixes else None
 
     def _predicate(tool: Any, readonly_context: Any = None) -> bool:
-        """Evaluate whether a GTI MCP tool matches the persona's allowed prefixes.
+        """Evaluate whether a GTI MCP tool matches the persona's prefixes.
 
         Args:
             tool: The candidate MCP tool or tool name.
             readonly_context: Optional ADK invocation readonly context.
 
         Returns:
-            ``True`` if the tool matches ``allowed_prefixes`` or no prefix
+            `True` if the tool matches `allowed_prefixes` or no prefix
             restriction is configured.
         """
         del readonly_context
@@ -308,32 +310,32 @@ def make_gti_tool_filter(
 # Authentication & Environment Builders
 # ---------------------------------------------------------------------------
 def build_secops_onemcp_header_provider(
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     oauth_auth_id: str | None = None,
 ) -> Callable[[Any], dict[str, str]]:
-    """Build a dynamic ``header_provider`` that injects OAuth/ADC tokens for OneMCP.
+    """Build a dynamic `header_provider` injecting OAuth/ADC tokens for OneMCP.
 
     Supports two authentication paths:
-      1. **Gemini Enterprise OAuth passthrough**: Checks ``readonly_context.state``
-         for ``temp:<oauth_auth_id>`` (or any ``temp:*`` access token).
+      1. **Gemini Enterprise OAuth passthrough**: Checks
+         `readonly_context.state` for `temp:<oauth_auth_id>` (or any `temp:*`
+         access token).
       2. **Google Application Default Credentials (ADC)**: Mints/refreshes a
-         short-lived OAuth 2.0 Bearer token with ``cloud-platform`` scope.
+         short-lived OAuth 2.0 Bearer token with `cloud-platform` scope.
 
     Args:
-        env: Optional environment dictionary override for testing.
+        env: Optional environment mapping override for testing.
         oauth_auth_id: Optional Gemini Enterprise OAuth authorization ID key.
 
     Returns:
-        A callable ``(readonly_context) -> dict[str, str]`` returning HTTP
-        headers with ``Authorization``, ``x-goog-user-project``, and
-        ``User-Agent``.
+        A callable `(readonly_context) -> dict[str, str]` returning HTTP
+        headers with `Authorization`, `x-goog-user-project`, and `User-Agent`.
     """
 
     def _header_provider(readonly_context: Any = None) -> dict[str, str]:
         """Resolve per-request HTTP headers for Google SecOps OneMCP.
 
         Args:
-            readonly_context: Optional ADK ``ReadonlyContext`` carrying session
+            readonly_context: Optional ADK `ReadonlyContext` carrying session
                 state.
 
         Returns:
@@ -343,9 +345,9 @@ def build_secops_onemcp_header_provider(
             RuntimeError: If tenant configuration is missing or Google Cloud
                 credentials fail to mint an access token.
         """
-        cfg = validate_secops_onemcp_config(env=env)
+        validated_config = validate_secops_onemcp_config(env=env)
         headers: dict[str, str] = {
-            "x-goog-user-project": cfg["project_id"],
+            "x-goog-user-project": validated_config["project_id"],
             "User-Agent": RECIPE_USER_AGENT,
         }
 
@@ -380,28 +382,28 @@ def build_secops_onemcp_header_provider(
 
 
 def build_gti_stdio_env(
-    base_env: dict[str, str] | None = None,
+    base_env: Mapping[str, str] | None = None,
     require_credentials: bool = False,
 ) -> dict[str, str]:
     """Build a sanitized child environment for the GTI MCP stdio server.
 
-    Unsets ``UV_PROJECT`` and ``UV_PROJECT_ENVIRONMENT`` so child ``uvx``
+    Unsets `UV_PROJECT` and `UV_PROJECT_ENVIRONMENT` so child `uvx`
     commands resolve their own isolated package environment, and explicitly
-    forwards ``VT_APIKEY`` because ``mcp.client.stdio`` strips non-default
+    forwards `VT_APIKEY` because `mcp.client.stdio` strips non-default
     environment variables.
 
     Args:
         base_env: Optional source environment mapping. Defaults to
-            ``os.environ``.
-        require_credentials: When ``True``, validates ``VT_APIKEY`` /
-            ``GTI_API_KEY`` immediately and raises ``RuntimeError`` if unset.
+            `os.environ`.
+        require_credentials: When `True`, validates `VT_APIKEY` /
+            `GTI_API_KEY` immediately and raises `RuntimeError` if unset.
 
     Returns:
         A dictionary of environment variables safe to pass to
-        ``StdioServerParameters(env=...)``.
+        `StdioServerParameters(env=...)`.
 
     Raises:
-        RuntimeError: If ``require_credentials=True`` and ``VT_APIKEY`` is
+        RuntimeError: If `require_credentials=True` and `VT_APIKEY` is
             missing.
     """
     source = dict(base_env if base_env is not None else os.environ)
@@ -427,12 +429,12 @@ def build_gti_stdio_env(
 # McpToolset Builders
 # ---------------------------------------------------------------------------
 class LazyValidatedMcpToolset(McpToolset):
-    """McpToolset subclass that validates live credentials before session creation.
+    """McpToolset subclass that validates credentials before connecting.
 
     Validates required environment variables immediately before connecting so
-    missing credentials surface a clear ``RuntimeError`` instead of a 60-second
-    subprocess or socket timeout. When ``INTEGRATION_TEST`` is set in CI
-    container smoke tests and live credentials are absent, ``get_tools``
+    missing credentials surface a clear `RuntimeError` instead of a 60-second
+    subprocess or socket timeout. When `INTEGRATION_TEST` is set in CI
+    container smoke tests and live credentials are absent, `get_tools`
     returns an empty list so FastAPI and A2A agent-card discovery boot cleanly.
     """
 
@@ -445,28 +447,28 @@ class LazyValidatedMcpToolset(McpToolset):
         """Initialize the toolset with an optional pre-connection validator.
 
         Args:
-            *args: Positional arguments forwarded to ``McpToolset.__init__``.
+            *args: Positional arguments forwarded to `McpToolset.__init__`.
             config_validator: Optional callable that validates required
-                environment variables and raises ``RuntimeError`` when missing.
-            **kwargs: Keyword arguments forwarded to ``McpToolset.__init__``.
+                environment variables and raises `RuntimeError` when missing.
+            **kwargs: Keyword arguments forwarded to `McpToolset.__init__`.
         """
         super().__init__(*args, **kwargs)
         self._config_validator = config_validator
 
     async def get_tools(self, readonly_context: Any = None) -> list[Any]:
-        """Validate credentials before connecting, or short-circuit in smoke tests.
+        """Validate credentials before connecting, or skip in smoke tests.
 
         Args:
-            readonly_context: Optional ADK ``ReadonlyContext`` passed during
+            readonly_context: Optional ADK `ReadonlyContext` passed during
                 tool resolution.
 
         Returns:
-            A list of discovered MCP tools (or ``[]`` in unconfigured
-            ``INTEGRATION_TEST`` smoke runs).
+            A list of discovered MCP tools (or `[]` in unconfigured
+            `INTEGRATION_TEST` smoke runs).
 
         Raises:
             RuntimeError: If required credentials are missing and
-                ``INTEGRATION_TEST`` is not set.
+                `INTEGRATION_TEST` is not set.
         """
         if self._config_validator is not None:
             try:
@@ -480,23 +482,23 @@ class LazyValidatedMcpToolset(McpToolset):
 
 def build_secops_onemcp_toolset(
     allowed_prefixes: Sequence[str] | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     require_credentials: bool = False,
 ) -> McpToolset:
-    """Create a live ``McpToolset`` connected to Google SecOps OneMCP over HTTP.
+    """Create a live `McpToolset` connected to Google SecOps OneMCP over HTTP.
 
     Args:
         allowed_prefixes: Optional sequence of tool name prefixes permitted for
             a specialist persona.
-        env: Optional environment dictionary override for testing.
-        require_credentials: When ``True``, validates tenant configuration at
+        env: Optional environment mapping override for testing.
+        require_credentials: When `True`, validates tenant configuration at
             construction time rather than deferring to session startup.
 
     Returns:
-        A configured ``LazyValidatedMcpToolset`` with ``tool_name_prefix="secops_"``.
+        A configured `LazyValidatedMcpToolset` with `secops_` prefixing.
 
     Raises:
-        RuntimeError: If ``require_credentials=True`` and required Chronicle
+        RuntimeError: If `require_credentials=True` and required Chronicle
             tenant variables are missing.
     """
     if require_credentials:
@@ -514,26 +516,26 @@ def build_secops_onemcp_toolset(
 
 def build_gti_mcp_toolset(
     allowed_prefixes: Sequence[str] | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     require_credentials: bool = False,
 ) -> McpToolset:
-    """Create a live ``McpToolset`` for Google Threat Intelligence (GTI) MCP.
+    """Create a live `McpToolset` for Google Threat Intelligence (GTI) MCP.
 
-    Uses ``StreamableHTTPConnectionParams`` when ``GTI_MCP_URL`` is set, or
-    spawns ``uvx gti-mcp`` over stdio via ``StdioConnectionParams`` by default.
+    Uses `StreamableHTTPConnectionParams` when `GTI_MCP_URL` is set, or
+    spawns `uvx gti-mcp` over stdio via `StdioConnectionParams` by default.
 
     Args:
         allowed_prefixes: Optional sequence of GTI tool name prefixes permitted
             for a specialist persona.
-        env: Optional environment dictionary override for testing.
-        require_credentials: When ``True``, validates ``VT_APIKEY`` at
+        env: Optional environment mapping override for testing.
+        require_credentials: When `True`, validates `VT_APIKEY` at
             construction time rather than deferring to session startup.
 
     Returns:
-        A configured ``LazyValidatedMcpToolset`` with ``tool_name_prefix="gti_"``.
+        A configured `LazyValidatedMcpToolset` with `gti_` prefixing.
 
     Raises:
-        RuntimeError: If ``require_credentials=True`` and ``VT_APIKEY`` is not
+        RuntimeError: If `require_credentials=True` and `VT_APIKEY` is not
             configured.
     """
     if require_credentials:
@@ -598,10 +600,10 @@ def build_gti_mcp_toolset(
 # Model Callbacks (Event-Loop Guard & Schema Bloat Stripping)
 # ---------------------------------------------------------------------------
 def _reset_closed_event_loop_clients(callback_context: Any) -> None:
-    """Reset cached ``Gemini._api_client`` when ``AdkApp`` switches event loops.
+    """Reset cached `Gemini._api_client` when `AdkApp` switches event loops.
 
     Args:
-        callback_context: The ADK ``CallbackContext`` for the current model
+        callback_context: The ADK `CallbackContext` for the current model
             invocation.
     """
     global _LAST_LOOP_REF
@@ -633,30 +635,34 @@ def _reset_closed_event_loop_clients(callback_context: Any) -> None:
 def strip_response_json_schema_callback(
     callback_context: Any,
     llm_request: Any,
-) -> None:
-    """Strip 3.73 MB ``response_json_schema`` bloat from OneMCP tool declarations.
+) -> Any:
+    """Strip 3.73 MB `response_json_schema` bloat from OneMCP declarations.
 
     Google SecOps OneMCP attaches full UDM output schemas to every tool's
-    ``response_json_schema`` (totaling 3.73 MB across 62 tools), which exceeds
+    `response_json_schema` (totaling 3.73 MB across 62 tools), which exceeds
     Vertex AI's 1,048,576-token request limit if forwarded. Clearing
-    ``response_json_schema`` and ``response`` in ``before_model_callback``
-    preserves full ``parameters_json_schema`` input validation while keeping
+    `response_json_schema` and `response` in `before_model_callback`
+    preserves full `parameters_json_schema` input validation while keeping
     each LLM request compact.
 
     Args:
-        callback_context: The ADK ``CallbackContext`` for the current turn.
-        llm_request: The outgoing ``LlmRequest`` whose tool declarations are
+        callback_context: The ADK `CallbackContext` for the current turn.
+        llm_request: The outgoing `LlmRequest` whose tool declarations are
             sanitized in place.
+
+    Returns:
+        Always returns `None` so ADK proceeds with the sanitized `llm_request`.
     """
     _reset_closed_event_loop_clients(callback_context)
-    cfg = getattr(llm_request, "config", None)
-    if cfg is None:
-        return
-    tools = getattr(cfg, "tools", None) or []
+    request_config = getattr(llm_request, "config", None)
+    if request_config is None:
+        return None
+    tools = getattr(request_config, "tools", None) or []
     for tool in tools:
         decls = getattr(tool, "function_declarations", None) or []
-        for fd in decls:
-            if hasattr(fd, "response_json_schema"):
-                fd.response_json_schema = None
-            if hasattr(fd, "response"):
-                fd.response = None
+        for func_decl in decls:
+            if hasattr(func_decl, "response_json_schema"):
+                func_decl.response_json_schema = None
+            if hasattr(func_decl, "response"):
+                func_decl.response = None
+    return None

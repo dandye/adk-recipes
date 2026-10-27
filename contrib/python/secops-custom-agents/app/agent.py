@@ -15,25 +15,27 @@
 """Google SecOps Autonomous Security Operations ADK Agent.
 
 Combines four core capabilities into an adaptive ADK architecture:
-  1. **Google SecOps OneMCP** (``https://chronicle.<region>.rep.googleapis.com/mcp``)
-     for SIEM UDM search, entity lookup, YARA-L 2.0 (``YL2``) detection rule
-     verification, and SOAR case operations.
-  2. **Google Threat Intelligence (GTI) MCP** (``gti-mcp``) for file, domain,
+  1. **Google SecOps OneMCP**
+     (`https://chronicle.<region>.rep.googleapis.com/mcp`) for SIEM UDM search,
+     entity lookup, YARA-L 2.0 (`YL2`) detection rule verification, and SOAR
+     case operations.
+  2. **Google Threat Intelligence (GTI) MCP** (`gti-mcp`) for file, domain,
      IP, URL, and threat collection enrichment.
-  3. **ADK Skills** (``SkillToolset`` + ``load_skill_from_dir``) for progressive
+  3. **ADK Skills** (`SkillToolset` + `load_skill_from_dir`) for progressive
      disclosure of 6 operational SOC runbooks.
-  4. **Adaptive Specialist Personas** (``SECOPS_USE_PERSONAS=true`` by default):
-     - ``secops_supervisor`` orchestrating 5 role-scoped sub-agents
-       (``secops_triage_specialist``, ``secops_threat_hunter``,
-       ``secops_cti_researcher``, ``secops_detection_engineer``, and
-       ``secops_incident_responder``), or
-     - ``secops_agent`` (``SECOPS_USE_PERSONAS=false``) running as a single
+  4. **Adaptive Specialist Personas** (`SECOPS_USE_PERSONAS=true` by default):
+     - `secops_supervisor` orchestrating 5 role-scoped sub-agents
+       (`secops_triage_specialist`, `secops_threat_hunter`,
+       `secops_cti_researcher`, `secops_detection_engineer`, and
+       `secops_incident_responder`), or
+     - `secops_agent` (`SECOPS_USE_PERSONAS=false`) running as a single
        unified frontier agent.
 """
 
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 
 from google.adk.agents import Agent
 from google.adk.apps import App
@@ -48,19 +50,19 @@ from app import mcp_tools, personas, prompt, skills_loader
 # ---------------------------------------------------------------------------
 def _resolve_use_personas(
     use_personas: bool | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> bool:
-    """Resolve whether to build the 5-persona hierarchy or unified frontier agent.
+    """Resolve whether to build the 5-persona hierarchy or unified agent.
 
     Args:
-        use_personas: Explicit boolean override. When ``None``, reads
-            ``SECOPS_USE_PERSONAS`` from ``env`` or ``os.environ`` (defaulting
-            to ``True``).
-        env: Optional environment dictionary override for testing.
+        use_personas: Explicit boolean override. When `None`, reads
+            `SECOPS_USE_PERSONAS` from `env` or `os.environ` (defaulting
+            to `True`).
+        env: Optional environment mapping override for testing.
 
     Returns:
-        ``True`` if the 5-persona supervisor hierarchy should be built;
-        ``False`` for the single unified frontier agent.
+        `True` if the 5-persona supervisor hierarchy should be built;
+        `False` for the single unified frontier agent.
     """
     if use_personas is not None:
         return use_personas
@@ -75,17 +77,17 @@ def _resolve_use_personas(
 
 def _build_gemini_model(
     model_name: str | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> Gemini:
-    """Build the ``Gemini`` model instance with HTTP retry options.
+    """Build the `Gemini` model instance with HTTP retry options.
 
     Args:
-        model_name: Optional explicit model identifier override. When ``None``,
-            reads ``MODEL_NAME`` from ``env`` or ``os.environ``.
-        env: Optional environment dictionary override for testing.
+        model_name: Optional explicit model identifier override. When `None`,
+            reads `MODEL_NAME` from `env` or `os.environ`.
+        env: Optional environment mapping override for testing.
 
     Returns:
-        A configured `` google.adk.models.Gemini`` instance with 3 HTTP retry
+        A configured `google.adk.models.Gemini` instance with 3 HTTP retry
         attempts.
     """
     raw_model = (
@@ -114,21 +116,21 @@ def _build_gemini_model(
 def build_specialist_sub_agent(
     spec: personas.PersonaSpec,
     model_name: str | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     require_credentials: bool = False,
 ) -> Agent:
     """Build a single role-scoped SecOps specialist sub-agent.
 
     Args:
-        spec: The ``PersonaSpec`` defining the specialist's profile, allowed
+        spec: The `PersonaSpec` defining the specialist's profile, allowed
             skills, and allowed SecOps/GTI tool prefixes.
         model_name: Optional Gemini model name override.
-        env: Optional environment dictionary override for testing.
-        require_credentials: When ``True``, validates SecOps OneMCP and GTI
+        env: Optional environment mapping override for testing.
+        require_credentials: When `True`, validates SecOps OneMCP and GTI
             credentials immediately at agent construction time.
 
     Returns:
-        A configured ADK ``Agent`` scoped to the specialist persona.
+        A configured ADK `Agent` scoped to the specialist persona.
     """
     skill_toolset = skills_loader.build_secops_skill_toolset(
         skill_names=spec.skill_names,
@@ -157,20 +159,19 @@ def build_specialist_sub_agent(
 
 def build_persona_hierarchy_agent(
     model_name: str | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     require_credentials: bool = False,
 ) -> Agent:
-    """Build the hierarchical SecOps supervisor agent with 5 specialist personas.
+    """Build the hierarchical SecOps supervisor with 5 specialist personas.
 
     Args:
         model_name: Optional Gemini model name override.
-        env: Optional environment dictionary override for testing.
-        require_credentials: When ``True``, validates SecOps OneMCP and GTI
+        env: Optional environment mapping override for testing.
+        require_credentials: When `True`, validates SecOps OneMCP and GTI
             credentials immediately at agent construction time.
 
     Returns:
-        The ``secops_supervisor`` root ``Agent`` with 5 role-scoped
-        ``sub_agents``.
+        The `secops_supervisor` root `Agent` with 5 role-scoped `sub_agents`.
     """
     sub_agents = [
         build_specialist_sub_agent(
@@ -218,19 +219,19 @@ def build_persona_hierarchy_agent(
 
 def build_frontier_unified_agent(
     model_name: str | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     require_credentials: bool = False,
 ) -> Agent:
-    """Build the single unified Frontier SecOps agent with full tools and skills.
+    """Build the single unified Frontier SecOps agent with all tools/skills.
 
     Args:
         model_name: Optional Gemini model name override.
-        env: Optional environment dictionary override for testing.
-        require_credentials: When ``True``, validates SecOps OneMCP and GTI
+        env: Optional environment mapping override for testing.
+        require_credentials: When `True`, validates SecOps OneMCP and GTI
             credentials immediately at agent construction time.
 
     Returns:
-        The unified ``secops_agent`` ADK ``Agent`` instance.
+        The unified `secops_agent` ADK `Agent` instance.
     """
     skill_toolset = skills_loader.build_secops_skill_toolset()
     secops_toolset = mcp_tools.build_secops_onemcp_toolset(
@@ -264,23 +265,23 @@ def build_frontier_unified_agent(
 def create_agent(
     use_personas: bool | None = None,
     model_name: str | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     require_credentials: bool = False,
 ) -> Agent:
     """Create a fresh, isolated instance of the Google SecOps ADK agent.
 
     Args:
         use_personas: Optional boolean override selecting the 5-persona
-            supervisor hierarchy (``True``) or unified frontier agent
-            (``False``). When ``None``, reads ``SECOPS_USE_PERSONAS`` from the
-            environment (defaulting to ``True``).
+            supervisor hierarchy (`True`) or unified frontier agent
+            (`False`). When `None`, reads `SECOPS_USE_PERSONAS` from the
+            environment (defaulting to `True`).
         model_name: Optional Gemini model name override.
-        env: Optional environment dictionary override for testing.
-        require_credentials: When ``True``, validates SecOps OneMCP and GTI
+        env: Optional environment mapping override for testing.
+        require_credentials: When `True`, validates SecOps OneMCP and GTI
             credentials immediately at agent construction time.
 
     Returns:
-        The configured root ``Agent`` instance.
+        The configured root `Agent` instance.
     """
     if _resolve_use_personas(use_personas=use_personas, env=env):
         return build_persona_hierarchy_agent(

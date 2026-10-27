@@ -21,8 +21,8 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator
-from typing import Any
+from collections.abc import Callable, Iterator
+from typing import TextIO
 
 import pytest
 import requests
@@ -39,7 +39,7 @@ AGENT_CARD_URL = BASE_URL + "/a2a/app/.well-known/agent-card.json"
 HEADERS = {"Content-Type": "application/json"}
 
 
-def log_output(pipe: Any, log_func: Any) -> None:
+def log_output(pipe: TextIO, log_func: Callable[[str], None]) -> None:
     """Forwards lines from a subprocess pipe to a logging function.
 
     Args:
@@ -108,16 +108,13 @@ def wait_for_server(timeout: int = 90, interval: int = 1) -> bool:
         except RequestException:
             pass
         time.sleep(interval)
-    logger.error(f"Server did not become ready within {timeout} seconds")
+    logger.error("Server did not become ready within %s seconds", timeout)
     return False
 
 
 @pytest.fixture(scope="session")
-def server_fixture(request: Any) -> Iterator[subprocess.Popen[str]]:
+def server_fixture() -> Iterator[subprocess.Popen[str]]:
     """Session-scoped pytest fixture managing the FastAPI server process.
-
-    Args:
-        request: Pytest fixture request object used to register teardown.
 
     Yields:
         Running `subprocess.Popen` handle for the Uvicorn server.
@@ -127,16 +124,13 @@ def server_fixture(request: Any) -> Iterator[subprocess.Popen[str]]:
     if not wait_for_server():
         pytest.fail("Server failed to start")
     logger.info("Server process started")
-
-    def stop_server() -> None:
-        """Terminates and waits for the background Uvicorn server process."""
+    try:
+        yield server_process
+    finally:
         logger.info("Stopping server process")
         server_process.terminate()
         server_process.wait()
         logger.info("Server process stopped")
-
-    request.addfinalizer(stop_server)
-    yield server_process
 
 
 def test_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
@@ -145,6 +139,7 @@ def test_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
     Args:
         server_fixture: Running Uvicorn server fixture.
     """
+    del server_fixture
     logger.info("Starting chat stream test")
     # Create session first
     user_id = "test_user_123"
@@ -160,7 +155,7 @@ def test_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
         timeout=60,
     )
     assert session_response.status_code == 200
-    logger.info(f"Session creation response: {session_response.json()}")
+    logger.info("Session creation response: %s", session_response.json())
     session_id = session_response.json()["id"]
 
     # Then send chat message
@@ -214,6 +209,7 @@ def test_chat_stream_error_handling(
     Args:
         server_fixture: Running Uvicorn server fixture.
     """
+    del server_fixture
     logger.info("Starting chat stream error handling test")
     data = {
         "input": {
@@ -236,6 +232,7 @@ def test_a2a_agent_card(server_fixture: subprocess.Popen[str]) -> None:
     Args:
         server_fixture: Running Uvicorn server fixture.
     """
+    del server_fixture
     response = requests.get(AGENT_CARD_URL, headers=HEADERS, timeout=10)
     assert response.status_code == 200
     assert response.json().get("name") in {"secops_supervisor", "secops_agent"}

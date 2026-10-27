@@ -38,11 +38,8 @@ def _no_op_instrumentor_builder(project_id: str) -> None:
 
     Args:
         project_id: Google Cloud project ID passed by `AdkApp.set_up()`.
-
-    Returns:
-        Always returns `None`.
     """
-    return None
+    del project_id
 
 
 def attach_reasoning_engine_routes(app: FastAPI) -> None:
@@ -67,7 +64,7 @@ def attach_reasoning_engine_routes(app: FastAPI) -> None:
             from app.agent import app as adk_app
 
             # Reuse the process-wide services so sessions created here are
-            # visible to the adk_api and A2A paths, and vice versa (see services.py).
+            # visible to the adk_api and A2A paths, and vice versa.
             candidate = AdkApp(
                 app=adk_app,
                 session_service_builder=services.get_session_service,
@@ -82,7 +79,7 @@ def attach_reasoning_engine_routes(app: FastAPI) -> None:
             sync_methods = set(operations.get("", [])) | set(
                 operations.get("async", [])
             )
-            # Published only after set_up() succeeds, so a failed one is retried.
+            # Published only after set_up() succeeds so a failed one retries.
             runtime = candidate
         return runtime
 
@@ -108,14 +105,14 @@ def attach_reasoning_engine_routes(app: FastAPI) -> None:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Request body must be a JSON object with class_method.",
             )
-        rt = get_runtime()
+        runtime_instance = get_runtime()
         allowed = streaming_methods if streaming else sync_methods
         if class_method not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Unsupported reasoning_engine method: {class_method!r}",
             )
-        return getattr(rt, class_method)
+        return getattr(runtime_instance, class_method)
 
     @app.post("/api/stream_reasoning_engine")
     async def stream_query(request: Request) -> responses.StreamingResponse:

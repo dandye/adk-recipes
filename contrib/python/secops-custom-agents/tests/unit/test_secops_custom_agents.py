@@ -58,10 +58,10 @@ from app.skills_loader import (
 
 
 def test_list_personas_returns_five_specialists() -> None:
-    """Verifies all five specialist personas load with non-empty instructions."""
+    """Verifies all five specialist personas load non-empty instructions."""
     personas = list_personas()
     assert len(personas) == 5
-    keys = [p.persona_id for p in personas]
+    keys = [persona.persona_id for persona in personas]
     assert keys == [
         "cti_researcher",
         "detection_engineer",
@@ -105,7 +105,7 @@ def test_build_secops_skill_toolset_scopes_by_persona() -> None:
 
 
 def test_build_secops_skill_toolset_rejects_missing_skill() -> None:
-    """Verifies requesting a nonexistent skill name raises `FileNotFoundError`."""
+    """Verifies requesting a missing skill raises `FileNotFoundError`."""
     with pytest.raises(
         FileNotFoundError, match="Expected SecOps skill directory"
     ):
@@ -236,6 +236,9 @@ def test_build_secops_onemcp_toolset_validates_when_requested(
     monkeypatch.setenv("CHRONICLE_REGION", "eu")
     toolset = build_secops_onemcp_toolset(require_credentials=True)
     assert isinstance(toolset, McpToolset)
+    assert isinstance(
+        toolset._connection_params, StreamableHTTPConnectionParams
+    )
     assert (
         toolset._connection_params.url
         == "https://chronicle.eu.rep.googleapis.com/mcp"
@@ -285,8 +288,8 @@ def test_create_agent_persona_hierarchy_and_unified_modes(
     ]
     for sub in supervisor.sub_agents:
         assert len(sub.tools) == 3
-        assert any(isinstance(t, SkillToolset) for t in sub.tools)
-        mcp_count = sum(1 for t in sub.tools if isinstance(t, McpToolset))
+        assert any(isinstance(tool, SkillToolset) for tool in sub.tools)
+        mcp_count = sum(1 for tool in sub.tools if isinstance(tool, McpToolset))
         assert mcp_count == 2
 
     unified = create_agent(use_personas=False)
@@ -307,7 +310,7 @@ def test_create_agent_persona_hierarchy_and_unified_modes(
 def test_fastapi_and_a2a_agent_card_boot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verifies FastAPI server and A2A agent card boot cleanly in smoke test mode.
+    """Verifies FastAPI server and A2A agent card boot cleanly in smoke mode.
 
     Args:
         monkeypatch: Pytest fixture used to enable `INTEGRATION_TEST` mode.

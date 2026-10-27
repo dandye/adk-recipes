@@ -18,7 +18,7 @@ import os
 
 def test_agent_runnability() -> None:
     """Verify agent.py imports and defines the expected globals."""
-    # set INTEGRATION_TEST so helpers imported by agent.py take their mock path —
+    # Set INTEGRATION_TEST so helpers imported by agent.py take their mock path;
     # the setup must happen before the import.
     os.environ.setdefault("INTEGRATION_TEST", "TRUE")
 
