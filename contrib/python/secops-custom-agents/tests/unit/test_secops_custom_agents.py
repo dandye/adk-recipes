@@ -34,6 +34,7 @@ from app.agent import (
 )
 from app.mcp_tools import (
     EXCLUDED_FEED_MANAGEMENT_TOOLS,
+    _disable_mcp_tool_output_schema,
     build_gti_mcp_toolset,
     build_secops_onemcp_header_provider,
     build_secops_onemcp_toolset,
@@ -259,6 +260,32 @@ def test_strip_response_json_schema_callback_clears_output_schemas() -> None:
     assert result is None
     assert fn_decl.response_json_schema is None
     assert fn_decl.response is None
+
+    raw_tool = SimpleNamespace(
+        name="list_security_alerts",
+        outputSchema={"type": "object"},
+        output_schema={"type": "object"},
+    )
+    fake_session = SimpleNamespace(
+        _tool_output_schemas={"list_security_alerts": {"type": "object"}}
+    )
+
+    async def _fake_create_session(*args: object, **kwargs: object) -> object:
+        """Return a fake MCP session for output-schema patch verification."""
+        del args, kwargs
+        return fake_session
+
+    fake_mcp_tool = SimpleNamespace(
+        _mcp_tool=raw_tool,
+        _create_session=_fake_create_session,
+    )
+    _disable_mcp_tool_output_schema(fake_mcp_tool)
+    assert raw_tool.outputSchema is None
+    assert raw_tool.output_schema is None
+    import asyncio
+
+    asyncio.run(fake_mcp_tool._create_session())
+    assert fake_session._tool_output_schemas["list_security_alerts"] is None
 
 
 def test_create_agent_persona_hierarchy_and_unified_modes(

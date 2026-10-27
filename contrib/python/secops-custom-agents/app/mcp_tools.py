@@ -31,6 +31,8 @@ Provides production-hardened `McpToolset` factories and callbacks:
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import datetime
 import os
 import shlex
 import weakref
@@ -428,6 +430,47 @@ def build_gti_stdio_env(
 # ---------------------------------------------------------------------------
 # McpToolset Builders
 # ---------------------------------------------------------------------------
+def _disable_mcp_tool_output_schema(tool: Any) -> None:
+    """Clear MCP tool outputSchema to prevent bloat and SDK 2.x errors.
+
+    Google SecOps OneMCP attaches full UDM output schemas (3.73 MB across 62
+    tools) and returns streaming text chunks without `structuredContent` on
+    tools such as `list_security_alerts`. Clearing `outputSchema` /
+    `output_schema` on the wrapped MCP tool and registering `None` in
+    `session._tool_output_schemas` prevents both `response_json_schema`
+    prompt bloat in ADK 2.x and `RuntimeError` in MCP SDK 2.x
+    `validate_tool_result`.
+
+    Args:
+        tool: An ADK `McpTool` instance returned by `McpToolset.get_tools()`.
+    """
+    raw_tool = getattr(tool, "_mcp_tool", None)
+    if raw_tool is None:
+        return
+    for attr in ("outputSchema", "output_schema"):
+        if hasattr(raw_tool, attr):
+            with contextlib.suppress(AttributeError, TypeError):
+                setattr(raw_tool, attr, None)
+    raw_name = getattr(raw_tool, "name", None)
+    orig_create_session = getattr(tool, "_create_session", None)
+    if (
+        raw_name
+        and callable(orig_create_session)
+        and not getattr(tool, "_output_schema_disabled", False)
+    ):
+
+        async def _patched_create_session(*args: Any, **kwargs: Any) -> Any:
+            """Retrieve an MCP session with output-schema check disabled."""
+            session = await orig_create_session(*args, **kwargs)
+            schemas = getattr(session, "_tool_output_schemas", None)
+            if isinstance(schemas, dict):
+                schemas[raw_name] = None
+            return session
+
+        tool._create_session = _patched_create_session
+        tool._output_schema_disabled = True
+
+
 class LazyValidatedMcpToolset(McpToolset):
     """McpToolset subclass that validates credentials before connecting.
 
@@ -477,7 +520,10 @@ class LazyValidatedMcpToolset(McpToolset):
                 if os.getenv("INTEGRATION_TEST"):
                     return []
                 raise
-        return await super().get_tools(readonly_context=readonly_context)
+        tools = await super().get_tools(readonly_context=readonly_context)
+        for tool in tools:
+            _disable_mcp_tool_output_schema(tool)
+        return tools
 
 
 def build_secops_onemcp_toolset(
@@ -654,6 +700,16 @@ def strip_response_json_schema_callback(
         Always returns `None` so ADK proceeds with the sanitized `llm_request`.
     """
     _reset_closed_event_loop_clients(callback_context)
+    if hasattr(llm_request, "append_instructions"):
+        now_utc = datetime.datetime.now(datetime.UTC).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        llm_request.append_instructions(
+            [
+                f"Current UTC timestamp: {now_utc}. Use this timestamp when "
+                "computing relative time windows for Chronicle OneMCP queries."
+            ]
+        )
     request_config = getattr(llm_request, "config", None)
     if request_config is None:
         return None
